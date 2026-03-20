@@ -32,11 +32,23 @@ Sometimes you might encounter an error or timeout trying to run `setupAll` manua
 
 ## How to Use the Form
 
-Always use the personal form link sent to your email to request downloads. The script makes it simple for non-technical users to access different types of links:
-- **Google Drive File/Folder:** Simply paste the sharing link. If it's a folder, the script will automatically bypass the shortcuts, delve into all subfolders, and copy the entire contents into a safe folder in your Drive.
-- **Direct File Download:** Link to a regular file (e.g. PDF, image, Zip). It will be directly processed and downloaded to your Drive.
-- **Webpage:** If an informational article or page is blocked, paste the link and select "Save webpage". The script will parse the page and download a complete HTML file along with all the images to an offline folder in your Drive.
-- **Video (HLS/m3u8):** Some video courses use streaming segmented files (m3u8). Choose the video option, and the script will download the individual segments for you.
+Always use the personal form link sent to your email to request downloads. The form asks for the link and the type of action you want to perform. Here is how to choose the right option for different types of links:
+
+- **Google Drive File or Folder:** 
+  - **What to choose:** "Copy from Drive" (העתקה מדרייב).
+  - **Folder options:** If the link is for a folder, an additional question appears asking what to do. You can choose to **"Copy all files"**, which will delve into all subfolders and copy everything to your Drive, or **"Send me an email with the file list"**. If you choose the email option, the script will scan the entire folder and send you an email containing a fully detailed list of all files, including all subfolders and the individual files inside those subfolders, along with direct links to each. This lets you browse the contents safely and request only specific files later.
+
+- **Direct File Download (PDF, Zip, Audio, etc.):** 
+  - **What to choose:** "Download file from the internet" (הורדת קובץ מהאינטרנט).
+  - **Note on regular videos:** If your link is to a regular, single video file hosted on a site (like an `.mp4` or `.mkv` file), you should also use this option. 
+
+- **Saved Webpage (Offline viewing):** 
+  - **What to choose:** "Save webpage" (שמירת דף אינטרנט).
+  - **How it works:** If an informational article or page is blocked, paste the link. The script will parse the page and download a complete HTML file along with all its images into a new offline folder in your Drive.
+
+- **Streaming Video / Fragmented Video (HLS / m3u8):** 
+  - **What to choose:** "Collect video links from page" (איסוף קישורי וידאו מדף).
+  - **When to use this:** Many modern video courses and streaming sites do not provide one single video file. Instead, the video is split into hundreds of tiny little segments (often ending in `.m3u8` or `.ts`) that are played sequentially. Standard download methods cannot handle this. By choosing this option, the script will find and download all these tiny segments for you. *(Remember, if it's a regular, whole video file, use the "Direct File Download" option instead)*.
 
 ## Troubleshooting (Where are my files?)
 If you submitted the form and the requested files did not appear in your Google Drive, you can check what went wrong:
@@ -72,7 +84,7 @@ If you submitted the form and the requested files did not appear in your Google 
 ### התקנה באמצעות טריגר (הפעלות) - במקרה של שגיאה
 לעתים הרצה ידנית של פונקציית ההתקנה (`setupAll`) עשויה להחזיר שגיאה. במצב כזה תוכל לתזמן למערכת להריץ אותה משירותי הרקע בעוד כדקה:
 1. לחץ על סמל ה-**Triggers** (מפעילים - סמל של שעון עצר) בתפריט הצד.
-2. בצד ימין למטה של המסך, לחץ על הכפתור **Add Trigger** (הוסף מפעיל).
+2. בצד ימין למטה של המסך, לחץ על הכפתור **Add Trigger** (הוסף מפעיל/הוסף טריגר).
 3. בחלון שייפתח הגדר בדיוק את האפשרויות הבאות:
    - **Choose which function to run** (בחר פונקציה להפעלה): `setupAll`.
    - **Choose which deployment should run** (בחר מאיזו פריסה תתבצע הפעלה): `Head`.
@@ -83,11 +95,24 @@ If you submitted the form and the requested files did not appear in your Google 
 
 ## איך להשתמש בטופס?
 
-השאר והשתמש כל הזמן בקישור לטופס שנשלח אליך למייל. המערכת מנגישה את התהליך לאנשים לא-טכניים, ואין צורך בשום הבנה מקדימה:
-- **קובץ או תיקייה ב-Google Drive:** אם קיבלת קישור לתיקייה בדרייב או קובץ, פשוט הדבק אותו בטופס. המערכת תזהה אם מדובר בתיקייה (ותוציא במדויק גם תתי תיקיות רבות בפנים), ותעתיק הכל בצורה מסודרת לתיקייה פרטית בדרייב שלך. פשוט וקל.
-- **הורדת קובץ משירותי אחסון / אינטרנט:** מצאת קישור להורדה ישירה מאיזה אתר? (קובץ PDF, ארכיון Zip וכו'). פשוט זרוק לטופס וההורדה תיכנס לדרייב.
-- **הורדת דף אינטרנט מתורגם/חסום:** אם מצאת דף כתבה או מדריך טקסט שעשוי להיות חסום אצלך, תמסור את הקישור ובחר לשמור את "דף האינטרנט". הסקריפט ייקח את דף ה-HTML עם כל התמונות שעליו (שתכלס מורדות לשרתי גוגל) ויארוז הכל לתיקייה נגישה אצלך בדרייב שתוכל לפתוח מבלי לגלוש ישירות לאתר המקורי.
-- **סטרימינג ווידאו (HLS):** קישורים לשיעורי וידאו המחולקים למקטעי וידאו זעירים (m3u8). סמן שמדובר בווידאו, והסקריפט יוריד מקטע-מקטע עבורך באופן מידי.
+השאר והשתמש כל הזמן בקישור לטופס האוטומטי שנישלח אליך למייל. המערכת מנגישה את התהליך כך שהוא מתאים לכל משתמש. בטופס תתבקש להדביק את הקישור ולבחור איזו פעולה לעשות. הנה פירוט מלא:
+
+- **קובץ או תיקייה ב-Google Drive:** 
+  - **מה לבחור בטופס:** סמן את האפשרות "העתקה מדרייב (קובץ או תיקייה)".
+  - **אם זה קישור לתיקייה:** הטופס יציג בפניך שאלה נוספת בה תישאל מה לעשות עם התיקייה. תוכל לבחור באפשרות **"העתק את כל הקבצים"** ואז המערכת תעתיק מסודר מכל תתי-התיקיות ישירות לדרייב שלך, או שתוכל לבחור לקבל **"מייל עם רשימת הקבצים"**. אם תבחר במייל, המערכת תסרוק את התיקייה ותשלח אליך הודעה מסודרת הכוללת את כל הקבצים בתיקייה הראשית, ובנוסף רשימה של **כל תתי-התיקיות ושל כל הקבצים הנמצאים עמוק בתוכן** יחד עם קישור ישיר לכל אחד מהם! כך תוכל לבחור להעתיק בעצמך רק קבצים ספציפיים שמעניינים אותך.
+
+- **הורדת קובץ משירותי אחסון / חלץ מהאינטרנט:**
+  - **מה לבחור בטופס:** סמן את האפשרות "הורדת קובץ מהאינטרנט".
+  - **מתי משתמשים:** מצוין לקישורים ישירים להורדה (כמו קובץ PDF, ארכיון Zip, או קובץ קול). 
+  - **הערה חשובה במקרה של וידאו רגיל:** גם אם הקישור שקיבלת מוביל לקובץ וידאו יחיד ומוכר (כמו סרטון בסיומת `.mp4` או `.mkv` המאוחסן באתר), **יש לבחור באפשרות זו** של הורדת קובץ משום שמדובר בקובץ רגיל לכל דבר.
+
+- **הורדת דף אינטרנט מתורגם/חסום:**
+  - **מה לבחור בטופס:** סמן את האפשרות "שמירת דף אינטרנט (HTML + תמונות)".
+  - **איך זה עובד:** תכניס קישור לכתבה או מדריך טקסט (שעשוי להיות חסום אצלך בדפדפן הרגיל). הסקריפט ייגש לדף ה-HTML עם כל התמונות שעליו, יוריד אותן לשרתי גוגל ויארוז הכל לתיקייה אחת נגישה אצלך בדרייב שתוכל לפתוח ולקרוא גם כשהאתר עצמו איננו פתוח.
+
+- **קורסים בסטרימינג ווידאו מקוטע (HLS / m3u8):**
+  - **מה לבחור בטופס:** סמן באפשרות "איסוף קישורי וידאו מדף".
+  - **הסבר פשוט - למה זה נועד:** אתרי קורסים ווידאו רבים לא מגישים "קובץ וידאו אחד רגיל" שאפשר להוריד. במקום זה, הם חותכים את הווידאו למאות חתיכות (מקטעים) זעירות שמשודרות לדפדפן ברצף (לרוב קבצים עם סיומות מוזרות כמו `m3u8` או `.ts`). פעולות הורדה רגילות פשוט יכשלו שם כי אין קובץ אחד מושלם לקחת. אולם אם תבחר באפשרות זו – הסקריפט יעשה את העבודה הקשה של איתור כל מאות המקטעים הזעירים הללו והורדה של כולם אל תיקייה מיוחדת עבורך. *(כפי שצוין לפני כן, עבור קובץ וידאו "רגיל" אחד שלם שאינו מפוצל, יש לבחור בפעולת הורדת הקבצים הרגילה)*.
 
 ## איתור שגיאות (לאן נעלמו לי הקבצים?)
 אם מילאת את הטופס, חיכית מספיק זמן והקובץ המיוחל מעולם לא צץ ב-Google Drive, הנה הדרך לבדוק מה השתבש:
