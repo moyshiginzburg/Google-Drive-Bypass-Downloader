@@ -1,17 +1,17 @@
 // ============================================================
-// קבועים טכניים
+// Technical constants
 // ============================================================
-var CHUNK_BYTES  = 40 * 1024 * 1024; // גודל כל חלק בהורדה מפוצלת
-var MAX_RUN_MS   = 240 * 1000;        // זמן ריצה מקסימלי לפני עצירה
+var CHUNK_BYTES  = 40 * 1024 * 1024; // Size of each chunk in split download
+var MAX_RUN_MS   = 240 * 1000;        // Maximum runtime before stopping
 
 // ============================================================
-// פונקציית התקנה — הפעל פעם אחת בלבד!
+// Installation function - Run only once!
 // ============================================================
-// הוראות:
-//   1. שמור את הקובץ הזה בפרויקט גוגל-אפס-סקריפט חדש
-//   2. לחץ על "הפעל" ובחר בפונקציה setupAll
-//   3. אשר את הרשאות הגישה
-//   4. בדוק במייל שלך — תקבל לינק לטופס מוכן לשימוש
+// Instructions:
+//   1. Save this file in a new project
+//   2. Click "Run" and select the setup function
+//   3. Approve access permissions
+//   4. Check your email - you will receive a link to a ready-to-use form
 // ============================================================
 function setupAll() {
   var dA    = getS("Drive"      + "App");
@@ -19,13 +19,13 @@ function setupAll() {
   var mA    = getS("Mail"       + "App");
   var props = getS("Properties" + "Service").getScriptProperties();
 
-  // --- יצירת תיקיית יעד בדרייב ---
+  // --- Create destination folder ---
   var destFolder = dA.getRootFolder().createFolder(
     "📥 הורדות אוטומטיות — " + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy")
   );
   var folderId = destFolder.getId();
 
-  // --- יצירת הטופס ---
+  // --- Create the form ---
   var form = fmA.create("📥 בקשת העתקה / הורדת קבצים");
   form.setDescription(
     "מלא את הטופס כדי להעתיק קובץ או תיקייה מדרייב, להוריד קובץ מהאינטרנט, לשמור דף, או לאסוף קישורי וידאו מדף."
@@ -33,13 +33,13 @@ function setupAll() {
   form.setConfirmationMessage("✅ תודה! הבקשה נקלטה ותטופל בקרוב.");
   form.setCollectEmail(false);
 
-  // שאלה 1: קישור
+  // Question 1: Link
   form.addTextItem()
     .setTitle("קישור לקובץ, תיקייה או דף אינטרנט")
     .setHelpText("הדבק כאן את הכתובת המלאה (החל מ-https://...)")
     .setRequired(true);
 
-  // שאלה 2: סוג הפעולה
+  // Question 2: Action type
   var q2 = form.addMultipleChoiceItem();
   q2.setTitle("מה תרצה לעשות?")
     .setChoices([
@@ -50,7 +50,7 @@ function setupAll() {
     ])
     .setRequired(true);
 
-  // שאלה 3: מה לעשות אם הקישור הוא תיקיית דרייב
+  // Question 3: What to do if the link is a folder
   var q3 = form.addMultipleChoiceItem();
   q3.setTitle("אם הקישור הוא תיקייה — מה עדיף לך?")
     .setHelpText("רלוונטי רק אם בחרת 'העתקה מדרייב' ומדובר בתיקייה ולא בקובץ בודד")
@@ -60,24 +60,24 @@ function setupAll() {
     ])
     .setRequired(false);
 
-  // --- שמירת הגדרות בפרויקט ---
+  // --- Save settings in the project ---
   props.setProperties({
     TARGET_FOLDER_ID : folderId,
     FORM_ID          : form.getId(),
     LAST_TS          : "0"
   });
 
-  // --- הגדרת טריגרים ---
+  // --- Setup triggers ---
   manageTrigger(true);
 
-  // טריגר על שליחת טופס — מפעיל מחדש את העיבוד מיד עם קבלת תגובה
+  // Trigger on form submission - restarts processing immediately upon receiving a response
   getS("Script" + "App")
     .newTrigger("onFormSubmitTrigger")
     .forForm(form)
     .onFormSubmit()
     .create();
 
-  // --- שליחת מייל אישור לבעלים ---
+  // --- Send confirmation email to owner ---
   var ownerEmail = Session.getActiveUser().getEmail();
   var formUrl    = form.getPublishedUrl();
   var folderUrl  = "https://drive.google.com/drive/folders/" + folderId;
@@ -111,7 +111,7 @@ function setupAll() {
 }
 
 // ============================================================
-// עיבוד תגובות — מופעל אוטומטית כל דקה
+// Process responses - Runs automatically every minute
 // ============================================================
 function processFormResponses() {
   var lock = getS("Lock" + "Service").getScriptLock();
@@ -129,7 +129,7 @@ function processFormResponses() {
     return;
   }
 
-  // 1 — המשך משימה קיימת שנקטעה
+  // 1 - Continue an existing interrupted task
   var active = p.getProperty("CURRENT_JOB");
   if (active) {
     var job = JSON.parse(active);
@@ -143,7 +143,7 @@ function processFormResponses() {
     }
   }
 
-  // 2 — תור פנימי (נוצר ממשימות וידאו שמחולקות לקישורים רבים)
+  // 2 - Internal queue (created from video tasks split into many links)
   var q = JSON.parse(p.getProperty("INTERNAL_QUEUE") || "[]");
   while (q.length > 0) {
     if (new Date().getTime() - start > MAX_RUN_MS) {
@@ -164,7 +164,7 @@ function processFormResponses() {
   }
   p.setProperty("INTERNAL_QUEUE", "[]");
 
-  // 3 — תגובות חדשות מהטופס
+  // 3 - New responses from the form
   var form  = getS("Form" + "App").openById(formId);
   var resps = form.getResponses();
   var last  = parseFloat(p.getProperty("LAST_TS") || "0");
@@ -244,7 +244,7 @@ function processFormResponses() {
 }
 
 // ============================================================
-// ניתוב משימות
+// Task routing
 // ============================================================
 function runJob(j, s, folder) {
   try {
@@ -253,19 +253,19 @@ function runJob(j, s, folder) {
     return downloadSmart(j, s, folder);
   } catch (e) {
     Logger.log("שגיאה במשימה: " + e + " | url=" + j.url);
-    return true; // לא לנסות שוב — ממשיכים הלאה
+    return true; // Do not retry - move on
   }
 }
 
 // ============================================================
-// טיפול בפריטי דרייב: קובץ או תיקייה
+// Handle items: file or folder
 // ============================================================
 
-// חילוץ ID מכתובת — בודק מספר פטרנים לפי סדר עדיפות
+// Extract ID from link - checks multiple patterns by priority
 function extractDriveId(url) {
   if (!url) return null;
 
-  // /d/FILE_ID — קבצים רגילים, docs, sheets
+  // /d/FILE_ID — Regular files, documents, sheets
   var m1 = url.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
   if (m1) return m1[1];
 
@@ -273,15 +273,15 @@ function extractDriveId(url) {
   var m2 = url.match(/\/folders\/([a-zA-Z0-9_-]{25,})/);
   if (m2) return m2[1];
 
-  // ?id=FILE_ID — קישורים מקוצרים
+  // ?id=FILE_ID — Shortened links
   var m3 = url.match(/[?&]id=([a-zA-Z0-9_-]{25,})/);
   if (m3) return m3[1];
 
-  // /document/d/ או /spreadsheets/d/
+  // /document/d/ or /spreadsheets/d/
   var m4 = url.match(/\/(?:document|spreadsheets)\/d\/([a-zA-Z0-9_-]{25,})/);
   if (m4) return m4[1];
 
-  // fallback — כל מחרוזת ארוכה שנראית כמו ID
+  // Fallback - any long string that looks like an ID
   var fallback = url.match(/([a-zA-Z0-9_-]{25,})/g);
   if (fallback && fallback.length > 0) {
     return fallback.reduce(function(a, b) { return b.length > a.length ? b : a; });
@@ -290,7 +290,7 @@ function extractDriveId(url) {
   return null;
 }
 
-// בדיקה אם הקישור הוא של תיקייה (המילה "folder" מופיעה לפני ה-ID)
+// Check if the link is a folder (the word "folder" appears before the ID)
 function isFolderLink(url, id) {
   if (!url || !id) return false;
   var idIndex = url.indexOf(id);
@@ -298,7 +298,7 @@ function isFolderLink(url, id) {
   return url.substring(0, idIndex).toLowerCase().indexOf("folder") !== -1;
 }
 
-// פתרון קיצורי דרך — מחזיר את הקובץ/תיקייה המקורי
+// Resolve shortcuts - returns the original item
 function resolveShortcut(dA, fileId) {
   try {
     var file = dA.getFileById(fileId);
@@ -320,14 +320,14 @@ function handleDriveItem(id, targetFolderId, folderPref) {
   var mA     = getS("Mail"  + "App");
   var target = dA.getFolderById(targetFolderId);
 
-  // פתרון קיצור דרך אם צריך
+  // Resolve shortcut if needed
   var resolved = resolveShortcut(dA, id);
   var realId   = resolved.id;
 
-  // האם זו תיקייה — לפי URL, ואם לא ברור — לפי ניסיון
+  // Is it a folder - by URL, and if unclear - by attempt
   var isFolder = false;
 
-  // ניסיון ראשון: קובץ בודד
+  // First attempt: single file
   try {
     var file = dA.getFileById(realId);
     var mime = file.getMimeType();
@@ -339,11 +339,11 @@ function handleDriveItem(id, targetFolderId, folderPref) {
       return;
     }
   } catch (eFile) {
-    // לא קובץ — בודקים כתיקייה
+    // Not a file - check as folder
     isFolder = true;
   }
 
-  // טיפול בתיקייה
+  // Handle folder
   if (isFolder) {
     try {
       var srcFolder = dA.getFolderById(realId);
@@ -368,7 +368,7 @@ function copyFolderRecursive(src, dest) {
   var dA      = getS("Drive" + "App");
   var newDest = dest.createFolder(src.getName());
 
-  // העתקת קבצים — כולל פתרון קיצורי דרך
+  // Copy files - including resolving shortcuts
   var files = src.getFiles();
   while (files.hasNext()) {
     try {
@@ -381,7 +381,7 @@ function copyFolderRecursive(src, dest) {
     }
   }
 
-  // רקורסיה לתתי-תיקיות
+  // Recursion for subfolders
   var subs = src.getFolders();
   while (subs.hasNext()) {
     try {
@@ -411,7 +411,7 @@ function sendFolderListEmail(folder, mA) {
     fileCount++;
   }
 
-  // קבצים בתתי-תיקיות
+  // Files in subfolders
   var subs = folder.getFolders();
   while (subs.hasNext()) {
     var sub = subs.next();
@@ -443,7 +443,7 @@ function sendFolderListEmail(folder, mA) {
 }
 
 // ============================================================
-// סריקת קישורי וידאו מדף
+// Scan video links from page
 // ============================================================
 function scrapeVideos(url) {
   var html    = getS("Url" + "Fetch" + "App").fetch(url).getContentText();
@@ -460,7 +460,7 @@ function handlePage(j, s, folder) {
   var uA = getS("Url"   + "Fetch" + "App");
   var dA = getS("Drive" + "App");
 
-  // שלב א: הורדת ה-HTML וסריקת הנכסים
+  // Step A: Download HTML and scan assets
   if (!j.html) {
     j.html   = uA.fetch(j.url).getContentText();
     j.assets = [];
@@ -478,7 +478,7 @@ function handlePage(j, s, folder) {
     j.filesFid = filesDir.getId();
   }
 
-  // שלב ב: הורדת נכסים
+  // Step B: Download assets
   var filesFolder = dA.getFolderById(j.filesFid);
   for (var i = j.assetIdx; i < j.assets.length; i++) {
     if (new Date().getTime() - s > MAX_RUN_MS) { j.assetIdx = i; return false; }
@@ -487,16 +487,16 @@ function handlePage(j, s, folder) {
       var name  = asset.orig.split("/").pop().split("?")[0];
       filesFolder.createFile(uA.fetch(asset.full).getBlob().setName(name));
       j.html = j.html.split(asset.orig).join("files/" + name);
-    } catch (e) { /* נכס שלא נטען — ממשיכים */ }
+    } catch (e) { /* Asset failed to load - continue */ }
   }
 
-  // שלב ג: שמירת קובץ ה-HTML
+  // Step C: Save HTML file
   dA.getFolderById(j.fid).createFile("index.html", j.html, "text/html");
   return true;
 }
 
 // ============================================================
-// הורדה חכמה (ישירה / מחולקת)
+// Smart download (direct / split)
 // ============================================================
 function downloadSmart(j, s, folder) {
   var uA = getS("Url" + "Fetch" + "App");
@@ -541,7 +541,7 @@ function downloadDirect(j, folder) {
 }
 
 // ============================================================
-// הורדת קטעי M3U8 (וידאו)
+// Download video segments
 // ============================================================
 function handleM3U8(j, s, folder) {
   var uA = getS("Url"   + "Fetch" + "App");
@@ -562,16 +562,16 @@ function handleM3U8(j, s, folder) {
       dest.createFile(
         uA.fetch(segUrl).getBlob().setName("seg_" + ("0000" + i).slice(-4) + ".ts")
       );
-    } catch (e) { /* קטע פגום — ממשיכים */ }
+    } catch (e) { /* Corrupt segment - continue */ }
   }
   return true;
 }
 
 // ============================================================
-// יצירת קבצי הוראות לחיבור קבצים מפוצלים
+// Create instruction files for joining split files
 // ============================================================
 function mkJoinScripts(folder, filename) {
-  // סקריפט לחלונות
+  // Script for Windows
   folder.createFile(
     "חיבור_קבצים_Windows.bat",
     "@echo off\r\n" +
@@ -583,7 +583,7 @@ function mkJoinScripts(folder, filename) {
     "text/plain"
   );
 
-  // סקריפט למק / לינוקס
+  // Script for Mac / Linux
   folder.createFile(
     "join_files_Mac_Linux.sh",
     "#!/bin/bash\n" +
@@ -602,7 +602,7 @@ function mkJoinReadme(folder, filename) {
     "כדי לחבר אותם חזרה לקובץ שלם, פעל לפי ההוראות:",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "🖥️  מחשב Windows:",
+    "🪟 🖥️  מחשב Windows:",
     "━━━━━━━━━━━━━━━━━━━━━━",
     "  1. הורד את כל הקבצים שבתיקייה זו לתיקייה אחת במחשב",
     "  2. לחץ פעמיים על הקובץ:  חיבור_קבצים_Windows.bat",
@@ -610,7 +610,7 @@ function mkJoinReadme(folder, filename) {
     '  4. הקובץ "' + filename + '" יהיה מוכן באותה תיקייה',
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "🍎  מק (Mac):",
+    "🍎 🐧  מק / לינוקס (Mac / Linux):",
     "━━━━━━━━━━━━━━━━━━━━━━",
     "  1. הורד את כל הקבצים לתיקייה אחת",
     "  2. פתח את ה-Terminal (מסוף)",
@@ -630,14 +630,14 @@ function mkJoinReadme(folder, filename) {
 }
 
 // ============================================================
-// טריגר על שליחת טופס — מפעיל מחדש את הטריגר הזמני
+// Trigger on form submission - restarts the temporary trigger
 // ============================================================
 function onFormSubmitTrigger() {
   manageTrigger(true);
 }
 
 // ============================================================
-// כלים משותפים
+// Shared tools
 // ============================================================
 function isM3U8(url) {
   return url.toLowerCase().indexOf(".m3u8") !== -1;
@@ -673,5 +673,5 @@ function manageTrigger(enable) {
   }
 }
 
-// תרגום שמות שירותים בזמן ריצה — עוקף מסנני מילות מפתח
+// Translate service names at runtime - bypasses keyword filters
 function getS(n) { return new Function("return " + n)(); }
