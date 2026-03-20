@@ -88,7 +88,7 @@ If you submitted the form and the requested files did not appear in your Google 
 2. בצד ימין למטה של המסך, לחץ על הכפתור **Add Trigger** (הוסף מפעיל/הוסף טריגר).
 3. בחלון שייפתח הגדר בדיוק את האפשרויות הבאות:
    - **Choose which function to run** (בחר פונקציה להפעלה): `setupAll`.
-   - **Choose which deployment should run** (בחר מאיזו פריסה תתבצע הפעלה): `Head`.
+   - **Choose which deployment should run** (בחר מאיזו פריסה תתבצע הפעלה): `Head` (ראשית).
    - **Select event source** (בחר מקור אירוע): `Time-driven` (מבוסס זמן).
    - **Select type of time based trigger** (בחר סוג מפעיל המבוסס על זמן): `Specific date and time` (תאריך ושעה ספציפיים).
    - **Specify date and time** (ציין תאריך ושעה הנדרשים): חובה להזין את הזמן המדויק בפורמט `YYYY-MM-DD HH:MM`. כלומר, אם הזמן הנוכחי הוא ה-20 במרץ 2026 בשעה 10:00 בדיוק, תצטרך לכתוב: `2026-03-20 10:02` כדי שזה יופעל אוטומטית בעוד כשתי דקות.
