@@ -40,6 +40,7 @@ Always use the personal form link sent to your email to request downloads. The f
 
 - **Direct File Download (PDF, Zip, Audio, etc.):** 
   - **What to choose:** "Download file from the internet" (הורדת קובץ מהאינטרנט).
+  - **Large Files (over 40MB):** If the file you are downloading is very large, measuring over 40MB, the script will automatically split it into smaller numbered parts (e.g., `.001`, `.002`) to handle limits. It will save these parts in a newly created folder on your Drive, along with a `.bat` file (for Windows), a `.sh` file (for Mac/Linux), and a `.txt` readme file explaining exactly how to easily execute them with one click to instantly combine all parts back into the single original file locally on your computer.
   - **Note on regular videos:** If your link is to a regular, single video file hosted on a site (like an `.mp4` or `.mkv` file), you should also use this option. 
 
 - **Saved Webpage (Offline viewing):** 
@@ -104,6 +105,7 @@ If you submitted the form and the requested files did not appear in your Google 
 - **הורדת קובץ משירותי אחסון / חלץ מהאינטרנט:**
   - **מה לבחור בטופס:** סמן את האפשרות "הורדת קובץ מהאינטרנט".
   - **מתי משתמשים:** מצוין לקישורים ישירים להורדה (כמו קובץ PDF, ארכיון Zip, או קובץ קול). 
+  - **מה קורה בקבצים גדולים (מעל 40 מגה)?** מכיוון שישנן הגבלות על זיכרון בפלטפורמה, לגבי קובץ רשת ששוקל יותר מ-40MB הסקריפט נוהג בחכמה: הוא יוריד ויפצל אותו לחלקים קטנים וממוספרים (כגון `.001`, `.002` וכו'). כל החלקים יישמרו בתיקייה ייעודית בדרייב אליה יתווסף קובץ הסבר (README.txt) בעברית, וכן שני קבצי סקריפט קטנים (למשתמשי חלונות ולמשתמשי מק/לינוקס). כשתוריד את כל התיקייה יחדיו למחשב שלך, תוכל פשוט להפעיל את אחד הסקריפטים והוא יאחד אוטומטית את כל החלקים בחזרה לקובץ המקורי ברגע אחד וללא מאמץ!
   - **הערה חשובה במקרה של וידאו רגיל:** גם אם הקישור שקיבלת מוביל לקובץ וידאו יחיד ומוכר (כמו סרטון בסיומת `.mp4` או `.mkv` המאוחסן באתר), **יש לבחור באפשרות זו** של הורדת קובץ משום שמדובר בקובץ רגיל לכל דבר.
 
 - **הורדת דף אינטרנט מתורגם/חסום:**
