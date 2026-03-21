@@ -15,7 +15,7 @@ This project provides a Google Apps Script that helps you download files, folder
 4. Click the **Save project** icon (floppy disk) at the top toolbar.
 5. In the top toolbar, look at the dropdown menu next to the "Debug" button and make sure the function `setupAll` is selected.
 6. Click **Run**.
-7. A prompt will appear asking for authorization. Click **Review permissions**. Choose your Google account, click **Advanced**, and then click the link at the bottom (e.g., **Go to Untitled project (unsafe)**). Finally, click **Allow**.
+7. A prompt will appear asking for authorization. Click **Review permissions**. Choose your Google account, click **Advanced**, and then click the link at the bottom (e.g., **Go to Untitled project (unsafe)**). **Once you proceed, approve all required permissions and finally click Allow.** **Note:** If this step fails (e.g., due to a timeout or block), you must run the script by creating a trigger. See the "Troubleshooting: Running setupAll via a Trigger" section below for details.
 8. Once execution finishes, check your Gmail inbox. You will receive an email containing the link to your newly generated, personal submission form.
 
 ### Troubleshooting: Running `setupAll` via a Trigger
@@ -28,7 +28,7 @@ Sometimes you might encounter an error or timeout trying to run `setupAll` manua
    - **Select event source:** `Time-driven`
    - **Select type of time based trigger:** `Specific date and time`
    - **Specify date and time:** You must enter the exact date and time in the `YYYY-MM-DD HH:MM` format. For example, if the current time is March 20, 2026 at 10:00 AM, type exactly `2026-03-20 10:02` to run it in two minutes.
-4. Click **Save**. Wait for the specific time to pass, and the system will run the setup automatically. The email with your form link will arrive shortly after.
+4. Click **Save**. **Authorization:** When saving the trigger, a permission prompt will appear. Click **Review permissions**, select your account, click **Advanced**, and then the link at the bottom. **Once you proceed, approve all required permissions and finally click Allow.** Wait for the specific time to pass, and the system will run the setup automatically. The email with your form link will arrive shortly after.
 
 ## How to Use the Form
 
@@ -79,7 +79,7 @@ If you submitted the form and the requested files did not appear in your Google 
 4. שמור את הפרויקט על ידי לחיצה על סמל השמירה (**Save project** - צורת דיסקט) בסרגל הכלים העליון.
 5. בסרגל העליון, בשורת התפריטים ליד כפתור התחלת ההרצה ("Run" / "הפעל"), ודא שהפונקציה שמוגדרת כרגע להרצה היא `setupAll` (אם מופיעה פונקציה אחרת, פתח את הרשימה הנפתחת ובחר בה).
 6. לחץ על **Run** (הפעל).
-7. קופץ חלון בקשת הרשאות. לחץ בו על **Review permissions** (בדוק הרשאות). בחר את חשבון הגוגל שלך, לחץ על **Advanced** (מתקדם), ואז לחץ על הקישור למטה כדי לאשר מעבר לפרויקט (לדוגמה: **Go to Untitled project (unsafe)**). לבסוף, לחץ **Allow** (אפשר).
+7. קופץ חלון בקשת הרשאות. לחץ בו על **Review permissions** (בדוק הרשאות). בחר את חשבון הגוגל שלך, לחץ על **Advanced** (מתקדם), ואז לחץ על הקישור למטה כדי לאשר מעבר לפרויקט (לדוגמה: **Go to Untitled project (unsafe)** או: המשך אל פרויקט ללא שם (לא מאובטח)). **לאחר שעברת לפרויקט יש לאשר את כל ההרשאות הנדרשות ולבסוף ללחוץ על Allow (אפשר).** **שימו לב:** אם שלב זה נכשל (למשל עקב חסימה), יש להפעיל את הסקריפט באמצעות יצירת טריגר, ראו הסבר מפורט בהמשך.
 8. ההרצה תסתיים. כעת, כנס לתיבת המייל שלך (Gmail) - תחכה לך שם הודעת דוא"ל עם קישור לטופס אישי שנוצר במיוחד בשבילך.
 
 ### התקנה באמצעות טריגר (הפעלות) - במקרה של שגיאה
@@ -92,7 +92,7 @@ If you submitted the form and the requested files did not appear in your Google 
    - **Select event source** (בחר מקור אירוע): `Time-driven` (מבוסס זמן).
    - **Select type of time based trigger** (בחר סוג מפעיל המבוסס על זמן): `Specific date and time` (תאריך ושעה ספציפיים).
    - **Specify date and time** (ציין תאריך ושעה הנדרשים): חובה להזין את הזמן המדויק בפורמט `YYYY-MM-DD HH:MM`. כלומר, אם הזמן הנוכחי הוא ה-20 במרץ 2026 בשעה 10:00 בדיוק, תצטרך לכתוב: `2026-03-20 10:02` כדי שזה יופעל אוטומטית בעוד כשתי דקות.
-4. לחץ **Save** (שמור). המתן שהשעה הקבועה תעבור - התהליך ירוץ מעצמו ותוך זמן קצר תקבל את המייל עם הטופס המיוחל.
+4. לחץ **Save** (שמור). **אישור הרשאות:** במהלך שמירת הטריגר יופיע חלון אישור הרשאות. לחץ על **Review permissions**, בחר חשבון, לחץ על **Advanced** ואז על הקישור למטה (Go to...). **לאחר שעברת לפרויקט יש לאשר את כל ההרשאות הנדרשות ולבסוף ללחוץ על Allow (אפשר).** המתן שהשעה הקבועה תעבור - התהליך ירוץ מעצמו ותוך זמן קצר תקבל את המייל עם הטופס המיוחל.
 
 ## איך להשתמש בטופס?
 
