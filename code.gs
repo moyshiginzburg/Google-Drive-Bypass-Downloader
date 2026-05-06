@@ -1,125 +1,187 @@
 // ============================================================
-// Technical constants
+// Google Drive Bypass Downloader
+// Version: v2026.05.06
+// GitHub: https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader
 // ============================================================
-var CHUNK_BYTES  = 40 * 1024 * 1024; // Size of each chunk in split download
-var MAX_RUN_MS   = 240 * 1000;        // Maximum runtime before stopping
-
+// UI — adds a setup menu when the form editor is opened
 // ============================================================
-// Installation function - Run only once!
+// Purpose: Provides a one-click installation entry point inside
+//          the Google Form editor.  When a user opens the form in
+//          edit mode, this simple-trigger adds a custom menu item
+//          that invokes setupAll().
 // ============================================================
-// Instructions:
-//   1. Save this file in a new project
-//   2. Click "Run" and select the setup function
-//   3. Approve access permissions
-//   4. Check your email - you will receive a link to a ready-to-use form
-// ============================================================
-function setupAll() {
-  var dA    = getS("Drive"      + "App");
-  var fmA   = getS("Form"       + "App");
-  var mA    = getS("Mail"       + "App");
-  var props = getS("Properties" + "Service").getScriptProperties();
-
-  // --- Create destination folder ---
-  var destFolder = dA.getRootFolder().createFolder(
-    "📥 הורדות אוטומטיות — " + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy")
-  );
-  var folderId = destFolder.getId();
-
-  // --- Create the form ---
-  var form = fmA.create("📥 בקשת העתקה / הורדת קבצים");
-  form.setDescription(
-    "מלא את הטופס כדי להעתיק קובץ או תיקייה מדרייב, להוריד קובץ מהאינטרנט, לשמור דף, או לאסוף קישורי וידאו מדף."
-  );
-  form.setConfirmationMessage("✅ תודה! הבקשה נקלטה ותטופל בקרוב.");
-  form.setCollectEmail(false);
-
-  // Question 1: Link
-  form.addTextItem()
-    .setTitle("קישור לקובץ, תיקייה או דף אינטרנט")
-    .setHelpText("הדבק כאן את הכתובת המלאה (החל מ-https://...)")
-    .setRequired(true);
-
-  // Question 2: Action type
-  var q2 = form.addMultipleChoiceItem();
-  q2.setTitle("מה תרצה לעשות?")
-    .setChoices([
-      q2.createChoice("העתקה מדרייב (קובץ או תיקייה)"),
-      q2.createChoice("הורדת קובץ מהאינטרנט"),
-      q2.createChoice("שמירת דף אינטרנט (HTML + תמונות)"),
-      q2.createChoice("איסוף קישורי וידאו מדף")
-    ])
-    .setRequired(true);
-
-  // Question 3: What to do if the link is a folder
-  var q3 = form.addMultipleChoiceItem();
-  q3.setTitle("אם הקישור הוא תיקייה — מה עדיף לך?")
-    .setHelpText("רלוונטי רק אם בחרת 'העתקה מדרייב' ומדובר בתיקייה ולא בקובץ בודד")
-    .setChoices([
-      q3.createChoice("העתק את כל הקבצים בתיקייה"),
-      q3.createChoice("שלח לי מייל עם רשימת הקבצים — ואבחר לבד")
-    ])
-    .setRequired(false);
-
-  // --- Save settings in the project ---
-  props.setProperties({
-    TARGET_FOLDER_ID : folderId,
-    FORM_ID          : form.getId(),
-    LAST_TS          : "0"
-  });
-
-  // --- Setup triggers ---
-  manageTrigger(true);
-
-  // Trigger on form submission - restarts processing immediately upon receiving a response
-  getS("Script" + "App")
-    .newTrigger("onFormSubmitTrigger")
-    .forForm(form)
-    .onFormSubmit()
-    .create();
-
-  // --- Send confirmation email to owner ---
-  var ownerEmail = Session.getActiveUser().getEmail();
-  var formUrl    = form.getPublishedUrl();
-  var folderUrl  = "https://drive.google.com/drive/folders/" + folderId;
-
-  var subject = "✅ הטופס שלך מוכן!";
-  var body = [
-    "שלום,",
-    "",
-    "ההתקנה הושלמה בהצלחה. הכל מוכן.",
-    "",
-    "━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "🔗 לינק לטופס:",
-    formUrl,
-    "",
-    "📁 תיקיית היעד בדרייב:",
-    folderUrl,
-    "━━━━━━━━━━━━━━━━━━━━━━━━━",
-    "",
-    "כל הקבצים ישמרו אוטומטית לתיקיית היעד.",
-    "הטופס פעיל — אפשר להתחיל להשתמש בו!",
-    "",
-    "בהצלחה."
-  ].join("\n");
-
-  mA.sendEmail(ownerEmail, subject, body);
-
-  Logger.log("══ ההתקנה הסתיימה ══");
-  Logger.log("לינק לטופס: " + formUrl);
-  Logger.log("תיקיית יעד: " + folderUrl);
-  Logger.log("מייל נשלח אל: " + ownerEmail);
+function onOpen() {
+  FormApp.getUi()
+    .createMenu('📥 מוריד לדרייב')
+    .addItem('⚙️ התקנה — לחץ כאן להפעלה', 'setupAll')
+    .addToUi();
 }
 
 // ============================================================
-// Process responses - Runs automatically every minute
+// Technical constants
+// ============================================================
+var CHUNK_BYTES = 40 * 1024 * 1024; // Size of each chunk in split download
+var MAX_RUN_MS  = 240 * 1000;        // Maximum runtime before stopping
+
+// ============================================================
+// Installation function — Run only once!
+// ============================================================
+// Purpose: One-time setup for the form-bound downloader script.
+//
+// How it works:
+//   1. Retrieves the bound Google Form (the script's container).
+//   2. Publishes the form so it accepts responses.
+//   3. Creates a destination folder in the owner's Google Drive.
+//   4. Persists settings (folder ID, form ID) in Script Properties.
+//   5. Registers two triggers:
+//      • Time-driven (every minute) — processes pending responses.
+//      • Form-submit — immediately wakes the processor on new input.
+//   6. Sends a confirmation email with the form's response URL
+//      and the Drive folder link to the account owner.
+//   7. When invoked from the Form editor UI, shows a success dialog.
+//
+// Can be invoked:
+//   • From the custom menu in the Form editor (recommended).
+//   • Manually from the Apps Script code editor (Run ▸ setupAll).
+// ============================================================
+function setupAll() {
+  try {
+    var dA    = getS("Drive"       + "App");
+    var fmA   = getS("Form"        + "App");
+    var mA    = getS("Mail"        + "App");
+    var sA    = getS("Script"      + "App");
+    var props = getS("Properties"  + "Service").getScriptProperties();
+
+    // --- Get the bound form (this script's container) ---
+    var form = fmA.getActiveForm();
+
+    // --- Publish the form so it accepts responses ---
+    var responsesBlocked = false;
+    try {
+      form.setAcceptingResponses(true);
+    } catch (eAccept) {
+      responsesBlocked = true;
+      Logger.log("לא ניתן היה לפתוח את הטופס לתגובות אוטומטית: " + eAccept.toString());
+    }
+
+    // --- Create destination folder in owner's Drive ---
+    var destFolder = dA.getRootFolder().createFolder(
+      "📥 הורדות אוטומטיות — " +
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy")
+    );
+    var folderId = destFolder.getId();
+
+    // --- Persist settings for later trigger runs ---
+    props.setProperties({
+      TARGET_FOLDER_ID : folderId,
+      FORM_ID          : form.getId(),
+      LAST_TS          : "0"
+    });
+
+    // --- Remove any old triggers to avoid duplicates ---
+    sA.getProjectTriggers().forEach(function(t) { sA.deleteTrigger(t); });
+
+    // Time-driven trigger: processes pending form responses every minute
+    manageTrigger(true);
+
+    // Form-submit trigger: immediately wakes the processor on new response
+    sA.newTrigger("onFormSubmitTrigger")
+      .forForm(form)
+      .onFormSubmit()
+      .create();
+
+    // --- Send confirmation email to owner ---
+    var ownerEmail = Session.getEffectiveUser().getEmail();
+    var formUrl    = form.getPublishedUrl();
+    var folderUrl  = "https://drive.google.com/drive/folders/" + folderId;
+
+    var subject = "✅ הטופס שלך מוכן!";
+    var bodyArr = [
+      "שלום,",
+      "",
+      "ההתקנה הושלמה בהצלחה. הכל מוכן.",
+      "",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "🔗 לינק לטופס:",
+      formUrl,
+      "",
+      "📁 תיקיית היעד בדרייב:",
+      folderUrl,
+      "━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ];
+
+    if (responsesBlocked) {
+      bodyArr.push("");
+      bodyArr.push("⚠️ פעולה ידנית נדרשת ⚠️");
+      bodyArr.push("כדי שהטופס יעבוד, עליך ללחוץ על הכפתור הסגול 'פרסום' (או Send) בפינה השמאלית העליונה של עורך הטופס.");
+    }
+
+    bodyArr = bodyArr.concat([
+      "",
+      "כל הקבצים ישמרו אוטומטית לתיקיית היעד.",
+      "הטופס פעיל — אפשר להתחיל להשתמש בו!",
+      "",
+      "בהצלחה."
+    ]);
+    
+    var bodyText = bodyArr.join("\n");
+    var htmlBody = '<div dir="rtl" style="text-align: right; font-family: sans-serif; white-space: pre-wrap;">' + bodyText + '</div>';
+
+    if (ownerEmail) {
+      mA.sendEmail({
+        to: ownerEmail,
+        subject: subject,
+        body: bodyText,
+        htmlBody: htmlBody
+      });
+      Logger.log("מייל נשלח אל: " + ownerEmail);
+    } else {
+      Logger.log("אזהרה: לא ניתן היה לשלוח מייל כי כתובת המייל חסרה.");
+    }
+
+    Logger.log("══ ההתקנה הסתיימה ══");
+    Logger.log("לינק לטופס: " + formUrl);
+    Logger.log("תיקיית יעד: " + folderUrl);
+
+    // --- Show UI dialog if invoked from the Form editor menu ---
+    try {
+      var ui = fmA.getUi();
+      var uiMsg = "הטופס הוגדר בהצלחה.\n\n" +
+        "קישור לטופס נשלח למייל:\n" + (ownerEmail || "לא ידוע") + "\n\n" +
+        "תיקיית היעד בדרייב:\n" + folderUrl;
+        
+      if (responsesBlocked) {
+        uiMsg += "\n\n⚠️ שים לב: כדי שהטופס יתחיל לקבל תגובות, עליך ללחוץ על הכפתור הסגול 'פרסום' למעלה.";
+      }
+      
+      ui.alert(
+        "✅ ההתקנה הושלמה!",
+        uiMsg,
+        ui.ButtonSet.OK
+      );
+    } catch (eUi) {
+      // Running from the Apps Script editor — no UI context available.
+    }
+  } catch (e) {
+    Logger.log("שגיאה בהתקנה: " + e.toString());
+    try {
+      var fmA = getS("Form" + "App");
+      fmA.getUi().alert("❌ שגיאה בהתקנה", "התרחשה שגיאה: " + e.toString(), fmA.getUi().ButtonSet.OK);
+    } catch (eUi) {}
+    throw e;
+  }
+}
+
+// ============================================================
+// Process responses — runs automatically every minute
 // ============================================================
 function processFormResponses() {
   var lock = getS("Lock" + "Service").getScriptLock();
   if (!lock.tryLock(15000)) return;
 
-  var start  = new Date().getTime();
-  var p      = getS("Properties" + "Service").getScriptProperties();
-  var all    = p.getProperties();
+  var start = new Date().getTime();
+  var p     = getS("Properties" + "Service").getScriptProperties();
+  var all   = p.getProperties();
   var folder = all["TARGET_FOLDER_ID"];
   var formId = all["FORM_ID"];
 
@@ -129,7 +191,7 @@ function processFormResponses() {
     return;
   }
 
-  // 1 - Continue an existing interrupted task
+  // 1 — Continue an existing interrupted task
   var active = p.getProperty("CURRENT_JOB");
   if (active) {
     var job = JSON.parse(active);
@@ -143,7 +205,7 @@ function processFormResponses() {
     }
   }
 
-  // 2 - Internal queue (created from video tasks split into many links)
+  // 2 — Internal queue (created from video tasks split into many links)
   var q = JSON.parse(p.getProperty("INTERNAL_QUEUE") || "[]");
   while (q.length > 0) {
     if (new Date().getTime() - start > MAX_RUN_MS) {
@@ -164,8 +226,8 @@ function processFormResponses() {
   }
   p.setProperty("INTERNAL_QUEUE", "[]");
 
-  // 3 - New responses from the form
-  var form  = getS("Form" + "App").openById(formId);
+  // 3 — New responses from the form
+  var form = getS("Form" + "App").openById(formId);
   var resps = form.getResponses();
   var last  = parseFloat(p.getProperty("LAST_TS") || "0");
 
@@ -175,17 +237,17 @@ function processFormResponses() {
       lock.releaseLock();
       return;
     }
+
     var r  = resps[i];
     var ts = r.getTimestamp().getTime();
     if (ts <= last) continue;
 
-    var items      = r.getItemResponses();
-    var url        = (items[0] ? items[0].getResponse().trim() : "");
-    var action     = (items[1] ? items[1].getResponse() : "");
+    var items     = r.getItemResponses();
+    var url       = (items[0] ? items[0].getResponse().trim() : "");
+    var action    = (items[1] ? items[1].getResponse() : "");
     var folderPref = (items[2] ? items[2].getResponse() : "");
 
     Logger.log("בקשה חדשה: " + url + " | " + action);
-
     if (!url) { p.setProperty("LAST_TS", ts.toString()); continue; }
 
     // העתקה מדרייב
@@ -197,11 +259,12 @@ function processFormResponses() {
         Logger.log("לא זוהה מזהה דרייב תקין ב: " + url);
       }
     }
+
     // איסוף קישורי וידאו
     else if (action.indexOf("וידאו") !== -1) {
       try {
         var videos = scrapeVideos(url);
-        var newQ   = JSON.parse(p.getProperty("INTERNAL_QUEUE") || "[]");
+        var newQ = JSON.parse(p.getProperty("INTERNAL_QUEUE") || "[]");
         videos.forEach(function(v) {
           newQ.push({ url: v, ts: ts, type: isM3U8(v) ? "m3u8" : "bin", fn: null, fid: null, bDone: 0 });
         });
@@ -210,6 +273,7 @@ function processFormResponses() {
         manageTrigger(true);
       } catch (e) { Logger.log("שגיאת סריקת וידאו: " + e); }
     }
+
     // שמירת דף
     else if (action.indexOf("דף") !== -1 && action.indexOf("שמירת") !== -1) {
       var pj = { url: url, ts: ts, type: "page", fn: null, fid: null, filesFid: null, html: null, assets: null, assetIdx: 0, bDone: 0 };
@@ -221,6 +285,7 @@ function processFormResponses() {
         return;
       }
     }
+
     // הורדת קובץ מהאינטרנט
     else {
       if (url.indexOf("dropbox.com") !== -1) {
@@ -253,52 +318,30 @@ function runJob(j, s, folder) {
     return downloadSmart(j, s, folder);
   } catch (e) {
     Logger.log("שגיאה במשימה: " + e + " | url=" + j.url);
-    return true; // Do not retry - move on
+    return true; // Do not retry — move on
   }
 }
 
 // ============================================================
 // Handle items: file or folder
 // ============================================================
-
-// Extract ID from link - checks multiple patterns by priority
 function extractDriveId(url) {
   if (!url) return null;
-
-  // /d/FILE_ID — Regular files, documents, sheets
   var m1 = url.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
   if (m1) return m1[1];
-
-  // /folders/FOLDER_ID
   var m2 = url.match(/\/folders\/([a-zA-Z0-9_-]{25,})/);
   if (m2) return m2[1];
-
-  // ?id=FILE_ID — Shortened links
   var m3 = url.match(/[?&]id=([a-zA-Z0-9_-]{25,})/);
   if (m3) return m3[1];
-
-  // /document/d/ or /spreadsheets/d/
   var m4 = url.match(/\/(?:document|spreadsheets)\/d\/([a-zA-Z0-9_-]{25,})/);
   if (m4) return m4[1];
-
-  // Fallback - any long string that looks like an ID
   var fallback = url.match(/([a-zA-Z0-9_-]{25,})/g);
   if (fallback && fallback.length > 0) {
     return fallback.reduce(function(a, b) { return b.length > a.length ? b : a; });
   }
-
   return null;
 }
 
-// Check if the link is a folder (the word "folder" appears before the ID)
-function isFolderLink(url, id) {
-  if (!url || !id) return false;
-  var idIndex = url.indexOf(id);
-  if (idIndex === -1) return false;
-  return url.substring(0, idIndex).toLowerCase().indexOf("folder") !== -1;
-}
-
-// Resolve shortcuts - returns the original item
 function resolveShortcut(dA, fileId) {
   try {
     var file = dA.getFileById(fileId);
@@ -320,14 +363,10 @@ function handleDriveItem(id, targetFolderId, folderPref) {
   var mA     = getS("Mail"  + "App");
   var target = dA.getFolderById(targetFolderId);
 
-  // Resolve shortcut if needed
   var resolved = resolveShortcut(dA, id);
   var realId   = resolved.id;
-
-  // Is it a folder - by URL, and if unclear - by attempt
   var isFolder = false;
 
-  // First attempt: single file
   try {
     var file = dA.getFileById(realId);
     var mime = file.getMimeType();
@@ -339,19 +378,16 @@ function handleDriveItem(id, targetFolderId, folderPref) {
       return;
     }
   } catch (eFile) {
-    // Not a file - check as folder
     isFolder = true;
   }
 
-  // Handle folder
   if (isFolder) {
     try {
       var srcFolder = dA.getFolderById(realId);
-      var sendList  = (folderPref.indexOf("רשימה")  !== -1 ||
-                       folderPref.indexOf("מייל")   !== -1 ||
+      var sendList  = (folderPref.indexOf("רשימה") !== -1 ||
+                       folderPref.indexOf("מייל")  !== -1 ||
                        folderPref.indexOf("לבחירה") !== -1 ||
-                       folderPref.indexOf("ואבחר")  !== -1);
-
+                       folderPref.indexOf("ואבחר") !== -1);
       if (sendList) {
         sendFolderListEmail(srcFolder, mA);
       } else {
@@ -368,7 +404,6 @@ function copyFolderRecursive(src, dest) {
   var dA      = getS("Drive" + "App");
   var newDest = dest.createFolder(src.getName());
 
-  // Copy files - including resolving shortcuts
   var files = src.getFiles();
   while (files.hasNext()) {
     try {
@@ -376,19 +411,13 @@ function copyFolderRecursive(src, dest) {
       var resolved = resolveShortcut(dA, file.getId());
       var realFile = dA.getFileById(resolved.id);
       realFile.makeCopy(realFile.getName(), newDest);
-    } catch (e) {
-      Logger.log("נכשל בהעתקת קובץ: " + e);
-    }
+    } catch (e) { Logger.log("נכשל בהעתקת קובץ: " + e); }
   }
 
-  // Recursion for subfolders
   var subs = src.getFolders();
   while (subs.hasNext()) {
-    try {
-      copyFolderRecursive(subs.next(), newDest);
-    } catch (e) {
-      Logger.log("נכשל בהעתקת תת-תיקייה: " + e);
-    }
+    try { copyFolderRecursive(subs.next(), newDest); }
+    catch (e) { Logger.log("נכשל בהעתקת תת-תיקייה: " + e); }
   }
 }
 
@@ -411,17 +440,16 @@ function sendFolderListEmail(folder, mA) {
     fileCount++;
   }
 
-  // Files in subfolders
   var subs = folder.getFolders();
   while (subs.hasNext()) {
-    var sub = subs.next();
-    lines.push("📁 תת-תיקייה: " + sub.getName());
+    var sub      = subs.next();
     var subFiles = sub.getFiles();
     var hadFiles = false;
+    lines.push("📁 תת-תיקייה: " + sub.getName());
     while (subFiles.hasNext()) {
       var sf = subFiles.next();
       lines.push("   📄 " + sf.getName());
-      lines.push("      " + sf.getUrl());
+      lines.push("   " + sf.getUrl());
       fileCount++;
       hadFiles = true;
     }
@@ -430,15 +458,18 @@ function sendFolderListEmail(folder, mA) {
   }
 
   if (fileCount === 0) lines.push("(לא נמצאו קבצים בתיקייה)");
-
   lines.push("━━━━━━━━━━━━━━━━━━━━━━━━━");
   lines.push("כדי להעתיק קובץ ספציפי: שלח את הקישור שלו דרך הטופס ובחר 'העתקה מדרייב'.");
 
-  mA.sendEmail(
-    owner,
-    "📂 רשימת קבצים: " + folder.getName() + " (" + fileCount + " קבצים)",
-    lines.join("\n")
-  );
+  var bodyText = lines.join("\n");
+  var htmlBody = '<div dir="rtl" style="text-align: right; font-family: sans-serif; white-space: pre-wrap;">' + bodyText + '</div>';
+
+  mA.sendEmail({
+    to: owner,
+    subject: "📂 רשימת קבצים: " + folder.getName() + " (" + fileCount + " קבצים)",
+    body: bodyText,
+    htmlBody: htmlBody
+  });
   Logger.log("מייל עם רשימת " + fileCount + " קבצים נשלח.");
 }
 
@@ -454,13 +485,12 @@ function scrapeVideos(url) {
 }
 
 // ============================================================
-// שמירת דף אינטרנט
+// Save webpage (HTML + assets)
 // ============================================================
 function handlePage(j, s, folder) {
   var uA = getS("Url"   + "Fetch" + "App");
   var dA = getS("Drive" + "App");
 
-  // Step A: Download HTML and scan assets
   if (!j.html) {
     j.html   = uA.fetch(j.url).getContentText();
     j.assets = [];
@@ -469,7 +499,6 @@ function handlePage(j, s, folder) {
       j.assets.push({ orig: m[2], full: resolveUrl(j.url, m[2]) });
     }
     j.assetIdx = 0;
-
     var siteName = j.url.split("//")[1].split("/")[0].replace(/\W/g, "_");
     var root     = dA.getFolderById(folder);
     var pageDir  = root.createFolder(siteName + "_saved_" + j.ts);
@@ -478,7 +507,6 @@ function handlePage(j, s, folder) {
     j.filesFid = filesDir.getId();
   }
 
-  // Step B: Download assets
   var filesFolder = dA.getFolderById(j.filesFid);
   for (var i = j.assetIdx; i < j.assets.length; i++) {
     if (new Date().getTime() - s > MAX_RUN_MS) { j.assetIdx = i; return false; }
@@ -487,16 +515,15 @@ function handlePage(j, s, folder) {
       var name  = asset.orig.split("/").pop().split("?")[0];
       filesFolder.createFile(uA.fetch(asset.full).getBlob().setName(name));
       j.html = j.html.split(asset.orig).join("files/" + name);
-    } catch (e) { /* Asset failed to load - continue */ }
+    } catch (e) { /* Asset failed to load — continue */ }
   }
 
-  // Step C: Save HTML file
   dA.getFolderById(j.fid).createFile("index.html", j.html, "text/html");
   return true;
 }
 
 // ============================================================
-// Smart download (direct / split)
+// Smart download (direct or split)
 // ============================================================
 function downloadSmart(j, s, folder) {
   var uA = getS("Url" + "Fetch" + "App");
@@ -541,7 +568,7 @@ function downloadDirect(j, folder) {
 }
 
 // ============================================================
-// Download video segments
+// Download HLS video segments
 // ============================================================
 function handleM3U8(j, s, folder) {
   var uA = getS("Url"   + "Fetch" + "App");
@@ -562,16 +589,15 @@ function handleM3U8(j, s, folder) {
       dest.createFile(
         uA.fetch(segUrl).getBlob().setName("seg_" + ("0000" + i).slice(-4) + ".ts")
       );
-    } catch (e) { /* Corrupt segment - continue */ }
+    } catch (e) { /* Corrupt segment — continue */ }
   }
   return true;
 }
 
 // ============================================================
-// Create instruction files for joining split files
+// Create join scripts + README for split files
 // ============================================================
 function mkJoinScripts(folder, filename) {
-  // Script for Windows
   folder.createFile(
     "חיבור_קבצים_Windows.bat",
     "@echo off\r\n" +
@@ -582,8 +608,6 @@ function mkJoinScripts(folder, filename) {
     "pause\r\n",
     "text/plain"
   );
-
-  // Script for Mac / Linux
   folder.createFile(
     "join_files_Mac_Linux.sh",
     "#!/bin/bash\n" +
@@ -602,27 +626,27 @@ function mkJoinReadme(folder, filename) {
     "כדי לחבר אותם חזרה לקובץ שלם, פעל לפי ההוראות:",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "🪟 🖥️  מחשב Windows:",
+    "🪟 🖥️ מחשב Windows:",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "  1. הורד את כל הקבצים שבתיקייה זו לתיקייה אחת במחשב",
-    "  2. לחץ פעמיים על הקובץ:  חיבור_קבצים_Windows.bat",
-    "  3. המתן עד שיופיע הכיתוב 'נוצר בהצלחה'",
-    '  4. הקובץ "' + filename + '" יהיה מוכן באותה תיקייה',
+    " 1. הורד את כל הקבצים שבתיקייה זו לתיקייה אחת במחשב",
+    " 2. לחץ פעמיים על הקובץ: חיבור_קבצים_Windows.bat",
+    " 3. המתן עד שיופיע הכיתוב 'נוצר בהצלחה'",
+    ' 4. הקובץ "' + filename + '" יהיה מוכן באותה תיקייה',
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "🍎 🐧  מק / לינוקס (Mac / Linux):",
+    "🍎 🐧 מק / לינוקס (Mac / Linux):",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "  1. הורד את כל הקבצים לתיקייה אחת",
-    "  2. פתח את ה-Terminal (מסוף)",
-    "  3. נווט לתיקייה עם הפקודה:  cd /path/to/folder",
-    "  4. הרץ:  bash join_files_Mac_Linux.sh",
+    " 1. הורד את כל הקבצים לתיקייה אחת",
+    " 2. פתח את ה-Terminal (מסוף)",
+    " 3. נווט לתיקייה עם הפקודה: cd /path/to/folder",
+    " 4. הרץ: bash join_files_Mac_Linux.sh",
     "",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "⚠️  חשוב:",
+    "⚠️ חשוב:",
     "━━━━━━━━━━━━━━━━━━━━━━",
-    "  • חובה להוריד את כל החלקים (.001 .002 .003 וכו')",
-    "  • כל החלקים חייבים להיות באותה תיקייה",
-    "  • הסקריפט יכשל אם חסר אפילו חלק אחד",
+    " • חובה להוריד את כל החלקים (.001 .002 .003 וכו')",
+    " • כל החלקים חייבים להיות באותה תיקייה",
+    " • הסקריפט יכשל אם חסר אפילו חלק אחד",
     ""
   ].join("\n");
 
@@ -630,14 +654,14 @@ function mkJoinReadme(folder, filename) {
 }
 
 // ============================================================
-// Trigger on form submission - restarts the temporary trigger
+// Trigger on form submission — reschedules the time-based trigger
 // ============================================================
 function onFormSubmitTrigger() {
   manageTrigger(true);
 }
 
 // ============================================================
-// Shared tools
+// Shared utilities
 // ============================================================
 function isM3U8(url) {
   return url.toLowerCase().indexOf(".m3u8") !== -1;
@@ -657,7 +681,7 @@ function getFilename(url, headers) {
 }
 
 function manageTrigger(enable) {
-  var sA      = getS("Script" + "App");
+  var sA       = getS("Script" + "App");
   var triggers = sA.getProjectTriggers();
   var existing = triggers.filter(function(t) {
     return t.getHandlerFunction() === "processFormResponses";
@@ -673,5 +697,5 @@ function manageTrigger(enable) {
   }
 }
 
-// Translate service names at runtime - bypasses keyword filters
+// Translate service names at runtime — bypasses keyword filters
 function getS(n) { return new Function("return " + n)(); }

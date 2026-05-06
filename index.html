@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>מוריד קבצים ודפים לדרייב</title>
+  <meta name="description" content="כלי חכם להורדת קבצים, תיקיות, דפי אינטרנט וסרטוני סטרימינג ישירות ל-Google Drive שלכם. עוקף חסימות רשת מקומיות, ללא שרתים חיצוניים ובפרטיות מלאה." />
+  <meta property="og:title"       content="מוריד קבצים ודפים לדרייב" />
+  <meta property="og:description" content="כלי חכם להורדת קבצים, תיקיות, דפי אינטרנט וסרטוני סטרימינג ישירות ל-Google Drive שלכם." />
+  <meta property="og:type"        content="website" />
+  <meta name="twitter:card"        content="summary" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-bg:        #ffffff;
+      --color-surface:   #f8f9fa;
+      --color-border:    #e1e4e8;
+      --color-text:      #24292e;
+      --color-muted:     #586069;
+      --color-accent:    #1a73e8;
+      --color-green:     #1e8e3e;
+      --color-green-bg:  #e6f4ea;
+      --color-green-hover: #1669c1;
+      --color-step-num:  #e8f0fe;
+      --color-step-border: #c5d4f5;
+      --radius-sm:  6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --shadow-card: 0 1px 3px rgba(60,64,67,.12), 0 2px 8px rgba(60,64,67,.08);
+      --shadow-btn:  0 1px 3px rgba(60,64,67,.3),  0 4px 8px rgba(60,64,67,.15);
+      --font: 'Heebo', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text);
+      background: var(--color-bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Site header ─────────────────────────────────────── */
+    .site-header {
+      border-bottom: 1px solid var(--color-border);
+      padding: 12px 0;
+      background: var(--color-bg);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .site-header .inner {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .site-header .logo {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--color-text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .site-header .logo span { color: var(--color-accent); }
+    .site-header nav { margin-right: auto; }
+    .site-header nav a {
+      font-size: 0.9rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      transition: color .15s, background .15s;
+    }
+    .site-header nav a:hover { color: var(--color-text); background: var(--color-surface); }
+
+    /* ── Main wrapper ────────────────────────────────────── */
+    .page-content {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+    }
+
+    /* ── Hero ────────────────────────────────────────────── */
+    .hero {
+      padding: 56px 0 40px;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 48px;
+    }
+    .hero h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--color-text);
+      margin-bottom: 14px;
+    }
+    .hero .subtitle {
+      font-size: 1.15rem;
+      color: var(--color-muted);
+      font-weight: 300;
+    }
+
+    /* ── Sections ────────────────────────────────────────── */
+    section { margin-bottom: 52px; }
+    section h2 {
+      font-size: 1.45rem;
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--color-border);
+    }
+    section p { color: var(--color-muted); margin-bottom: 16px; }
+    section p:last-child { margin-bottom: 0; }
+
+    /* ── Privacy note ────────────────────────────────────── */
+    .privacy-note {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+      color: var(--color-muted);
+    }
+    .privacy-note strong { color: var(--color-text); }
+
+    /* ── Feature list ────────────────────────────────────── */
+    .feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: var(--color-muted);
+      padding: 10px 14px;
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      font-size: 0.97rem;
+    }
+    .feature-list li .icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── Installation section title ──────────────────────── */
+    .install-intro {
+      color: var(--color-muted);
+      font-size: 0.98rem;
+      margin-bottom: 32px;
+    }
+
+    /* ── Steps ───────────────────────────────────────────── */
+    .steps { display: flex; flex-direction: column; gap: 28px; }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--color-step-num);
+      border: 2px solid var(--color-step-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-accent);
+      margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-body h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 10px;
+    }
+    .step-body p {
+      font-size: 0.96rem;
+      color: var(--color-muted);
+      margin-bottom: 14px;
+    }
+    .step-body p:last-child { margin-bottom: 0; }
+    .step-body strong { color: var(--color-text); font-weight: 600; }
+    .step-body code {
+      font-family: 'Courier New', monospace;
+      font-size: 0.88rem;
+      background: #f3f4f6;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      padding: 1px 5px;
+      direction: ltr;
+      display: inline-block;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font);
+      font-size: 1rem;
+      font-weight: 500;
+      text-decoration: none;
+      cursor: pointer;
+      border: none;
+      transition: background .2s, box-shadow .2s, transform .1s;
+    }
+    .btn:active { transform: translateY(1px); }
+
+    .btn-primary {
+      background: var(--color-green);
+      color: #fff;
+      box-shadow: var(--shadow-btn);
+    }
+    .btn-primary:hover {
+      background: var(--color-green-hover);
+      box-shadow: 0 2px 6px rgba(60,64,67,.35), 0 6px 14px rgba(60,64,67,.2);
+    }
+
+    .btn-secondary {
+      background: var(--color-surface);
+      color: var(--color-accent);
+      border: 1px solid var(--color-border);
+    }
+    .btn-secondary:hover { background: var(--color-step-num); }
+
+    /* ── Troubleshooting note ────────────────────────────── */
+    .tip-box {
+      background: #fff8e1;
+      border: 1px solid #f9d949;
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      font-size: 0.92rem;
+      color: #5f4b04;
+      margin-top: 16px;
+    }
+    .tip-box a { color: #b06000; }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .site-footer {
+      border-top: 1px solid var(--color-border);
+      padding: 28px 0;
+      text-align: center;
+      font-size: 0.88rem;
+      color: var(--color-muted);
+    }
+    .site-footer a { color: var(--color-accent); text-decoration: none; }
+    .site-footer a:hover { text-decoration: underline; }
+
+    /* ── Open-source note ────────────────────────────────── */
+    .oss-note {
+      margin-top: 48px;
+      padding-top: 28px;
+      border-top: 1px solid var(--color-border);
+      font-size: 0.92rem;
+      color: var(--color-muted);
+    }
+    .oss-note a { color: var(--color-accent); text-decoration: none; }
+    .oss-note a:hover { text-decoration: underline; }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 600px) {
+      .hero h1   { font-size: 1.65rem; }
+      .step-num  { width: 34px; height: 34px; font-size: 0.95rem; }
+      .btn       { font-size: 0.94rem; padding: 11px 18px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────── -->
+  <header class="site-header">
+    <div class="inner">
+      <a class="logo" href="#">
+        📥 <span>מוריד לדרייב</span>
+      </a>
+      <nav>
+        <a href="https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ── Page content ────────────────────────────────────── -->
+  <main class="page-content">
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>📥 מוריד קבצים ודפים לדרייב</h1>
+      <p class="subtitle">כל קובץ שתרצו — מועתק ישירות לחשבון ה-Google Drive הפרטי שלכם</p>
+    </div>
+
+    <!-- What is it -->
+    <section>
+      <h2>מה זה בעצם?</h2>
+      <p>
+        הכלי הזה הוא סקריפט אוטומטי שמאפשר לכם להוריד קבצים, תיקיות, דפי אינטרנט וסרטוני סטרימינג שחסומים בשל מערכות סינון מקומיות המותקנות במחשב שלכם. הסקריפט עוקף זאת על ידי ביצוע פעולת ההורדה על גבי שרתי גוגל, ויוצר עותק אישי נקי ובטוח ישירות בחשבון ה-Google Drive שלכם.
+      </p>
+
+      <div class="privacy-note">
+        🔒 <strong>הפרטיות שלכם נשמרת:</strong> הכל רץ בחשבון הגוגל שלכם בלבד. המפתח אינו שולח מידע לשרתים חיצוניים, אינו יכול לעקוב אחריכם ואינו יודע מי השתמש בכלי.
+      </div>
+
+      <p>הכלי מאפשר לכם:</p>
+      <ul class="feature-list">
+        <li><span class="icon">📂</span> להעתיק קבצים ותיקיות שלמות מ-Google Drive אחר ישירות לדרייב שלכם.</li>
+        <li><span class="icon">⬇️</span> להוריד קבצים ישירים מהאינטרנט (PDF, Zip, MP3 ועוד) — כולל קבצים גדולים שמפוצלים אוטומטית לחלקים.</li>
+        <li><span class="icon">🌐</span> לשמור דפי אינטרנט חסומים כקובץ HTML מלא עם כל התמונות, לצפייה לא מקוונת.</li>
+        <li><span class="icon">🎬</span> לאסוף ולשמור סרטוני סטרימינג מקוטעים (HLS / m3u8) מאתרי קורסים ווידאו.</li>
+      </ul>
+    </section>
+
+    <!-- Installation -->
+    <section>
+      <h2>איך מתקינים? (התקנה בקליק)</h2>
+      <p class="install-intro">ההתקנה פשוטה ומהירה, ולא דורשת שום ידע קודם. פשוט עקבו אחרי השלבים הבאים:</p>
+
+      <div class="steps">
+
+        <!-- Step 1 -->
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <h3>יצירת עותק אישי של הטופס</h3>
+            <p>לחצו על הכפתור הבא כדי לשכפל את המערכת ישירות לחשבון ה-Google Drive שלכם. תתבקשו לאשר את יצירת העותק.</p>
+            <a class="btn btn-primary" href="https://docs.google.com/forms/d/1_tx5IiAJYOkyYI88phhvt3YXJxLVl6Xi7OpZkiVdd6g/copy" target="_blank" rel="noopener">
+              📥 צור עותק של המערכת
+            </a>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <h3>הפעילו את ההתקנה מהתוספים</h3>
+            <p>
+              לאחר יצירת העותק, הטופס ייפתח. <strong>המתינו כמה שניות</strong>, ובחלק העליון של המסך תראו <strong>סמל של חלק פאזל (🧩 תוספים)</strong>. לחצו עליו, בחרו <strong>📥 מוריד לדרייב</strong>, ואז לחצו על <strong>⚙️ התקנה — לחץ כאן להפעלה</strong>.
+            </p>
+            <p>
+              בפעם הראשונה יופיע חלון אישור הרשאות. לחצו על <strong>"Review permissions"</strong>, בחרו את חשבון הגוגל שלכם, ואשרו את כל ההרשאות.
+              (אם מופיעה אזהרת אבטחה, לחצו על <strong>"Advanced"</strong> ואז על הקישור בתחתית.) פעולה זו נדרשת <strong>פעם אחת בלבד!</strong>
+            </p>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <h3>פתחו את הטופס לתגובות וסיימנו!</h3>
+            <p>
+              לאחר ההרצה תתקבל תיקייה חדשה ב-Drive שלכם בשם <strong>📥 הורדות אוטומטיות</strong>. בנוסף תקבלו מייל עם הודעת סיום.
+            </p>
+            <p>
+              כעת, כל מה שנותר לעשות כדי שהמערכת תתחיל לעבוד, הוא ללחוץ על <strong>הכפתור הסגול 'פרסום' (או Send)</strong> בפינה השמאלית העליונה של עורך הטופס.
+            </p>
+            <p>
+              <strong>זהו!</strong> שמרו את הקישור לטופס (שתקבלו לאחר הפרסום) — זהו הכתובת שתשתמשו בה בכל פעם שתרצו לבקש הורדה.
+            </p>
+
+            <div class="tip-box">
+              💡 <strong>לא רואים את סמל התוספים?</strong> טענו מחדש את דף עריכת הטופס (רענון דף). התפריט נטען רק בפתיחת הטופס לעריכה. <br/>
+              נתקלתם בשגיאה אחרת? <a href="https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader#faq" target="_blank" rel="noopener">צפו בפתרון בעיות נפוצות</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- How to use -->
+    <section>
+      <h2>איך להשתמש בטופס?</h2>
+      <p>
+        המערכת תומכת במגוון סוגי הורדות — קבצים ותיקיות מהדרייב, קבצים גדולים, דפי אינטרנט או סרטוני סטרימינג מקוטעים.
+        למידע המלא על אופן בחירת הפעולה הנכונה בטופס עבור כל סוג קישור:
+      </p>
+      <div style="margin-top: 20px;">
+        <a class="btn btn-secondary" href="https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader#איך-להשתמש-בטופס" target="_blank" rel="noopener">
+          📖 למדריך המלא: איך להשתמש בטופס?
+        </a>
+      </div>
+    </section>
+
+    <!-- Open-source note -->
+    <div class="oss-note">
+      המערכת שקופה, מבוססת קוד פתוח ופועלת באופן עצמאי לחלוטין בחשבון שלכם. למפתח אין שום יכולת מעקב, אין גישה לנתונים שלכם, והוא לא יודע מי השתמש במערכת. לביטחון מלא ועיון בקוד המקור, אתם מוזמנים לבקר ב-<a href="https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader" target="_blank" rel="noopener">GitHub של הפרויקט</a>.
+    </div>
+
+  </main>
+
+  <!-- ── Footer ───────────────────────────────────────────── -->
+  <footer class="site-footer">
+    <div>
+      <a href="https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader" target="_blank" rel="noopener">GitHub</a>
+      <span style="opacity: 0.6; margin: 0 4px;">·</span>
+      <a href="mailto:moyshiginzburg@gmail.com" style="color: inherit; text-decoration: none;">Built by Moyshi</a>
+    </div>
+  </footer>
+
+</body>
+</html>

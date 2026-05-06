@@ -1,34 +1,35 @@
 # Google Drive Bypass Downloader
 
-This project provides a Google Apps Script that helps you download files, folders, and webpages that are blocked by local computer filtering. It bypasses these local blocks by downloading the content directly on Google's servers and saving a safe copy directly to your personal Google Drive.
+This project provides a Google Apps Script bound to a Google Form that helps you download files, folders, and webpages that are blocked by local computer filtering. It bypasses these local blocks by downloading the content directly on Google's servers and saving a safe copy directly to your personal Google Drive.
 
-## First-Time Installation
+> **Easy installation:** For the simplest setup method (via the Form editor menu), see the [project landing page](https://moyshiginzburg.github.io/Google-Drive-Bypass-Downloader/).
 
-1. Go to [script.google.com](https://script.google.com) and click on **New project**.
-2. In the code editor that opens, delete all the existing code. Copy all the content from the `main.gs` file in this repository and paste it into the editor.
-3. Next, we need to update the project configuration:
-   - Click on the **Project Settings** (gear icon) on the left sidebar.
-   - Check the box that says **"Show 'appsscript.json' manifest file in editor"**.
-   - Go back to the **Editor** (code icon `< >` on the left sidebar).
-   - In the left files pane, click on the `appsscript.json` file.
-   - Replace its contents completely with the text from the `appsscript.json` file provided in this repository.
-4. Click the **Save project** icon (floppy disk) at the top toolbar.
-5. In the top toolbar, look at the dropdown menu next to the "Debug" button and make sure the function `setupAll` is selected.
-6. Click **Run**.
-7. A prompt will appear asking for authorization. Click **Review permissions**. Choose your Google account, click **Advanced**, and then click the link at the bottom (e.g., **Go to Untitled project (unsafe)**). **Once you proceed, approve all required permissions and finally click Allow.** **Note:** If this step fails (e.g., due to a timeout or block), you must run the script by creating a trigger. See the "Troubleshooting: Running setupAll via a Trigger" section below for details.
-8. Once execution finishes, check your Gmail inbox. You will receive an email containing the link to your newly generated, personal submission form.
+## Installation via Apps Script Editor (Advanced)
+
+If you prefer to run the setup directly from the Apps Script code editor:
+
+1. Open the Google Form that this script is bound to.
+2. In the Form editor, click the three-dot menu **⋮** at the top right and select **"Script editor"** to open the Apps Script editor.
+3. In the top toolbar, make sure the function `setupAll` is selected in the dropdown next to the **Run** button.
+4. Click **Run**.
+5. A prompt will appear asking for authorization. Click **Review permissions**. Choose your Google account, click **Advanced**, and then click the link at the bottom (e.g., **Go to project (unsafe)**). **Approve all required permissions and click Allow.** This is required only once.
+6. Check your Gmail inbox — you will receive a confirmation email with your destination Drive folder.
+7. **Important:** To start using the form, return to the Form editor and click the purple **Send** (or Publish) button at the top right to enable responses.
 
 ### Troubleshooting: Running `setupAll` via a Trigger
-Sometimes you might encounter an error or timeout trying to run `setupAll` manually. If this happens, you can schedule it to run automatically in the background using a trigger:
-1. Click on the **Triggers** icon (clock icon) on the left sidebar.
-2. Click the blue **Add Trigger** button at the bottom right of the screen.
-3. Configure the trigger strictly with these settings:
-   - **Choose which function to run:** `setupAll`
-   - **Choose which deployment should run:** `Head`
-   - **Select event source:** `Time-driven`
-   - **Select type of time based trigger:** `Specific date and time`
-   - **Specify date and time:** You must enter the exact date and time in the `YYYY-MM-DD HH:MM` format. For example, if the current time is March 20, 2026 at 10:00 AM, type exactly `2026-03-20 10:02` to run it in two minutes.
-4. Click **Save**. **Authorization:** When saving the trigger, a permission prompt will appear. Click **Review permissions**, select your account, click **Advanced**, and then the link at the bottom. **Once you proceed, approve all required permissions and finally click Allow.** Wait for the specific time to pass, and the system will run the setup automatically. The email with your form link will arrive shortly after.
+
+If running `setupAll` manually fails (e.g., due to a timeout or block), schedule it via a trigger:
+
+1. In the Apps Script editor, click the **Triggers** icon (clock) on the left sidebar.
+2. Click **Add Trigger** at the bottom right.
+3. Configure:
+   - **Function:** `setupAll`
+   - **Deployment:** `Head`
+   - **Event source:** `Time-driven`
+   - **Type:** `Specific date and time`
+   - **Date/time:** Enter a time ~2 minutes from now in `YYYY-MM-DD HH:MM` format.
+4. Click **Save**. Approve permissions when prompted. The setup will run automatically at the specified time.
+5. **Important:** Once it runs, return to the Form editor and click the purple **Send** (or Publish) button at the top right to enable responses.
 
 ## How to Use the Form
 
@@ -66,35 +67,27 @@ If you submitted the form and the requested files did not appear in your Google 
 
 # מוריד קבצים ודפים לדרייב
 
-פרויקט זה מכיל סקריפט אוטומטי המאפשר לך להוריד קבצים ודפי אינטרנט שחסומים בשל מערכות סינון מקומיות המותקנות במחשב שלך. הסקריפט עוקף זאת על ידי ביצוע פעולת ההורדה על גבי השרתים של גוגל, ויצירת עותק אישי נקי ובטוח ישירות בחשבון ה-Google Drive שלך.
+סקריפט אוטומטי המאפשר להוריד קבצים ודפי אינטרנט שחסומים בשל מערכות סינון מקומיות. הסקריפט עוקף זאת על ידי ביצוע ההורדה על שרתי גוגל ויצירת עותק ישירות ב-Google Drive שלך.
 
-## הוראות התקנה בפעם הראשונה
+> **התקנה קלה:** לדרך ההתקנה הפשוטה ביותר (דרך תפריט עורך הטופס), ראו את [דף הפרויקט](https://moyshiginzburg.github.io/Google-Drive-Bypass-Downloader/).
 
-1. היכנס לאתר [script.google.com](https://script.google.com) ולחץ על הכפתור **New project** (פרויקט חדש).
-2. ייפתח עורך קוד. מחק את כל הקוד הקיים שמופיע שם כברירת מחדל, העתק לכאן את כל התוכן של הקובץ `main.gs` מהמאגר הזה, והדבק אותו בעורך.
-3. כעת, עלינו לעדכן את קובץ ההגדרות:
-   - בתפריט הצדדי, לחץ על סמל ה-**Project Settings** (הגדרות פרויקט - סמל גלגל שיניים).
-   - סמן "וי" בתיבה שאומרת **"Show 'appsscript.json' manifest file in editor"** (הצג קובץ מניפסט).
-   - לאחר מכן, חזור ל-**Editor** (עורך - סמל של `< >` בתפריט הצד).
-   - ברשימת הקבצים כעת תראה קובץ בשם `appsscript.json`. לחץ עליו כדי לפתוח אותו.
-   - החלף את התוכן של הקובץ הזה לחלוטין בתוכן של הקובץ `appsscript.json` שמופיע במאגר הקוד שלנו.
-4. שמור את הפרויקט על ידי לחיצה על סמל השמירה (**Save project** - צורת דיסקט) בסרגל הכלים העליון.
-5. בסרגל העליון, בשורת התפריטים ליד כפתור התחלת ההרצה ("Run" / "הפעל"), ודא שהפונקציה שמוגדרת כרגע להרצה היא `setupAll` (אם מופיעה פונקציה אחרת, פתח את הרשימה הנפתחת ובחר בה).
-6. לחץ על **Run** (הפעל).
-7. קופץ חלון בקשת הרשאות. לחץ בו על **Review permissions** (בדוק הרשאות). בחר את חשבון הגוגל שלך, לחץ על **Advanced** (מתקדם), ואז לחץ על הקישור למטה כדי לאשר מעבר לפרויקט (לדוגמה: **Go to Untitled project (unsafe)** או: המשך אל פרויקט ללא שם (לא מאובטח)). **לאחר שעברת לפרויקט יש לאשר את כל ההרשאות הנדרשות ולבסוף ללחוץ על Allow (אפשר).** **שימו לב:** אם שלב זה נכשל (למשל עקב חסימה), יש להפעיל את הסקריפט באמצעות יצירת טריגר, ראו הסבר מפורט בהמשך.
-8. ההרצה תסתיים. כעת, כנס לתיבת המייל שלך (Gmail) - תחכה לך שם הודעת דוא"ל עם קישור לטופס אישי שנוצר במיוחד בשבילך.
+## התקנה דרך עורך הקוד (למתקדמים)
 
-### התקנה באמצעות טריגר (הפעלות) - במקרה של שגיאה
-לעתים הרצה ידנית של פונקציית ההתקנה (`setupAll`) עשויה להחזיר שגיאה. במצב כזה תוכל לתזמן למערכת להריץ אותה משירותי הרקע בעוד כדקה:
-1. לחץ על סמל ה-**Triggers** (מפעילים - סמל של שעון עצר) בתפריט הצד.
-2. בצד ימין למטה של המסך, לחץ על הכפתור **Add Trigger** (הוסף מפעיל/הוסף טריגר).
-3. בחלון שייפתח הגדר בדיוק את האפשרויות הבאות:
-   - **Choose which function to run** (בחר פונקציה להפעלה): `setupAll`.
-   - **Choose which deployment should run** (בחר מאיזו פריסה תתבצע הפעלה): `Head` (ראשית).
-   - **Select event source** (בחר מקור אירוע): `Time-driven` (מבוסס זמן).
-   - **Select type of time based trigger** (בחר סוג מפעיל המבוסס על זמן): `Specific date and time` (תאריך ושעה ספציפיים).
-   - **Specify date and time** (ציין תאריך ושעה הנדרשים): חובה להזין את הזמן המדויק בפורמט `YYYY-MM-DD HH:MM`. כלומר, אם הזמן הנוכחי הוא ה-20 במרץ 2026 בשעה 10:00 בדיוק, תצטרך לכתוב: `2026-03-20 10:02` כדי שזה יופעל אוטומטית בעוד כשתי דקות.
-4. לחץ **Save** (שמור). **אישור הרשאות:** במהלך שמירת הטריגר יופיע חלון אישור הרשאות. לחץ על **Review permissions**, בחר חשבון, לחץ על **Advanced** ואז על הקישור למטה (Go to...). **לאחר שעברת לפרויקט יש לאשר את כל ההרשאות הנדרשות ולבסוף ללחוץ על Allow (אפשר).** המתן שהשעה הקבועה תעבור - התהליך ירוץ מעצמו ותוך זמן קצר תקבל את המייל עם הטופס המיוחל.
+1. פתח את טופס ה-Google שהסקריפט מקושר אליו.
+2. בעורך הטופס, לחץ על תפריט שלוש הנקודות **⋮** בפינה הימנית העליונה ובחר **"Script editor"**.
+3. בסרגל העליון, ודא שהפונקציה `setupAll` מוגדרת בתפריט הנפתח ליד כפתור ההפעלה.
+4. לחץ על **Run** (הפעל).
+5. יופיע חלון בקשת הרשאות. לחץ על **Review permissions**, בחר חשבון, לחץ על **Advanced** ואז על הקישור למטה. **אשר את כל ההרשאות ולחץ Allow.** נדרש פעם אחת בלבד.
+6. היכנס לתיבת המייל — תמתין הודעה עם אישור ההתקנה ותיקיית היעד בדרייב.
+7. **חשוב:** כדי שהטופס יתחיל לפעול, חזור לעורך הטופס ולחץ על **הכפתור הסגול 'פרסום' (או Send)** למעלה.
+
+### התקנה באמצעות טריגר (במקרה של שגיאה)
+
+1. לחץ על **Triggers** (שעון) בתפריט הצד.
+2. לחץ **Add Trigger**.
+3. הגדר: פונקציה `setupAll`, פריסה `Head`, מקור `Time-driven`, סוג `Specific date and time`, תאריך ושעה בפורמט `YYYY-MM-DD HH:MM` (כ-2 דקות מעכשיו).
+4. לחץ **Save** ואשר הרשאות. ההתקנה תרוץ אוטומטית בזמן שנקבע.
+5. **חשוב:** לאחר שההתקנה מסתיימת, חזור לעורך הטופס ולחץ על **הכפתור הסגול 'פרסום' (או Send)** כדי לפתוח אותו לתגובות.
 
 ## איך להשתמש בטופס?
 
@@ -117,6 +110,8 @@ If you submitted the form and the requested files did not appear in your Google 
 - **קורסים בסטרימינג ווידאו מקוטע (HLS / m3u8):**
   - **מה לבחור בטופס:** סמן באפשרות "איסוף קישורי וידאו מדף".
   - **הסבר פשוט - למה זה נועד:** אתרי קורסים ווידאו רבים לא מגישים "קובץ וידאו אחד רגיל" שאפשר להוריד. במקום זה, הם חותכים את הווידאו למאות חתיכות (מקטעים) זעירות שמשודרות לדפדפן ברצף (לרוב קבצים עם סיומות מוזרות כמו `m3u8` או `.ts`). פעולות הורדה רגילות פשוט יכשלו שם כי אין קובץ אחד מושלם לקחת. אולם אם תבחר באפשרות זו – הסקריפט יעשה את העבודה הקשה של איתור כל מאות המקטעים הזעירים הללו והורדה של כולם אל תיקייה מיוחדת עבורך. *(כפי שצוין לפני כן, עבור קובץ וידאו "רגיל" אחד שלם שאינו מפוצל, יש לבחור בפעולת הורדת הקבצים הרגילה)*.
+
+<a id="faq"></a>
 
 ## איתור שגיאות (לאן נעלמו לי הקבצים?)
 אם מילאת את הטופס, חיכית מספיק זמן והקובץ המיוחל מעולם לא צץ ב-Google Drive, הנה הדרך לבדוק מה השתבש:
