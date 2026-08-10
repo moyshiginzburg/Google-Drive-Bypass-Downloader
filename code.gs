@@ -751,9 +751,16 @@ function downloadSmart(j, s, folder) {
     var chunkLen = 0;
     var payload;
     
+    // Purpose: Extract download content as a Google Apps Script Blob to ensure compatible transmission to Google Drive API, bypassing Java Byte[] serialization errors (HTTP 400).
+    // Method: If 200 OK is received, we query the content size using the Content-Length header or fallback to measuring the blob length, then save it as a Blob.
     if (code === 200 && offset === 0) {
-      payload = chunkResp.getContent();
-      chunkLen = payload.length;
+      var hl = parseContentLength(chunkResp.getHeaders());
+      payload = chunkResp.getBlob();
+      if (hl !== null) {
+        chunkLen = hl;
+      } else {
+        chunkLen = payload.getBytes().length;
+      }
       j.sz = chunkLen;
       isLastChunk = true;
     } else if (code === 206) {
@@ -1118,6 +1125,11 @@ function autoDetectAction(resolved, actionPref) {
     return "scrape_video";
   }
   if (actionPref.indexOf("דף") !== -1 && actionPref.indexOf("שמירת") !== -1) {
+    return "page";
+  }
+  // Purpose: Route standard HTML webpages to page-saving mode.
+  // Method: If the Content-Type header contains "text/html", we return "page" so the system downloads the HTML along with all its embedded resources (images, css, js).
+  if (ct.indexOf("text/html") !== -1) {
     return "page";
   }
   return "direct";
