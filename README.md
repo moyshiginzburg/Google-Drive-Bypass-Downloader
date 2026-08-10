@@ -33,32 +33,19 @@ If running `setupAll` manually fails (e.g., due to a timeout or block), schedule
 
 ## How to Use the Form
 
-Always use the personal form link sent to your email to request downloads. The form asks for the link and the type of action you want to perform. Here is how to choose the right option for different types of links:
+Using the system is incredibly simple. You only need the personal form link that was sent to your email during installation.
 
-- **Google Drive File or Folder:** 
-  - **What to choose:** "Copy from Drive" (העתקה מדרייב).
-  - **Folder options:** If the link is for a folder, an additional question appears asking what to do. You can choose to **"Copy all files"**, which will delve into all subfolders and copy everything to your Drive, or **"Send me an email with the file list"**. If you choose the email option, the script will scan the entire folder and send you an email containing a fully detailed list of all files, including all subfolders and the individual files inside those subfolders, along with direct links to each. This lets you browse the contents safely and request only specific files later.
+**Just paste the link!** The form has only one field. There is no need to select what type of file you are downloading. The system features a **Smart Auto-Detect** engine that automatically identifies the content:
 
-- **Direct File Download (PDF, Zip, Audio, etc.):** 
-  - **What to choose:** "Download file from the internet" (הורדת קובץ מהאינטרנט).
-  - **Large Files (over 40MB):** If the file you are downloading is very large, measuring over 40MB, the script will automatically split it into smaller numbered parts (e.g., `.001`, `.002`) to handle limits. It will save these parts in a newly created folder on your Drive, along with a `.bat` file (for Windows), a `.sh` file (for Mac/Linux), and a `.txt` readme file explaining exactly how to easily execute them with one click to instantly combine all parts back into the single original file locally on your computer.
-  - **Note on regular videos:** If your link is to a regular, single video file hosted on a site (like an `.mp4` or `.mkv` file), you should also use this option. 
+- **Direct Files & Webpages:** If you paste a direct download link (PDF, Zip, MP4) or a regular webpage, the system will download or save it directly to your Google Drive. It seamlessly handles large files using Google's Resumable Upload API.
+- **YouTube Videos:** Simply paste a YouTube link and the system will extract the video and save it to your Drive.
+- **Google Drive Folders:** If you paste a link to a Google Drive folder, the system will scan it and **send you an email**. The email will contain buttons to either download the entire folder at once, or browse the subfolders and files to pick exactly what you want to download with one click.
+- **Streaming Video (HLS / m3u8):** If you paste a link to a streaming video playlist, the system will parse the available resolutions and **send you an email**. You can simply click the quality you prefer in the email to start the download.
+- **URL Shorteners:** The system automatically resolves shortened links (like bit.ly) to discover the true destination.
 
-- **Saved Webpage (Offline viewing):** 
-  - **What to choose:** "Save webpage" (שמירת דף אינטרנט).
-  - **How it works:** If an informational article or page is blocked, paste the link. The script will parse the page and download a complete HTML file along with all its images into a new offline folder in your Drive.
+## Error Notifications
 
-- **Streaming Video / Fragmented Video (HLS / m3u8):** 
-  - **What to choose:** "Collect video links from page" (איסוף קישורי וידאו מדף).
-  - **When to use this:** Many modern video courses and streaming sites do not provide one single video file. Instead, the video is split into hundreds of tiny little segments (often ending in `.m3u8` or `.ts`) that are played sequentially. Standard download methods cannot handle this. By choosing this option, the script will find and download all these tiny segments for you. *(Remember, if it's a regular, whole video file, use the "Direct File Download" option instead)*.
-
-## Troubleshooting (Where are my files?)
-If you submitted the form and the requested files did not appear in your Google Drive, you can check what went wrong:
-1. Go back to your script project at [script.google.com](https://script.google.com).
-2. Click on the **Executions** tab (a list icon with a play button) on the left sidebar.
-3. You will see a table of recent runs. Look for the most recent run of the `processFormResponses` function (or `setupAll` if you were trying to install). Check the status column to see if it says "Failed" or "Completed".
-4. Click anywhere on that specific execution row to expand it.
-5. In the expanded view, carefully read the **Logs**. The logs will explain exactly what happened (for example, link access denied, file too large, invalid format, etc.).
+You never have to wonder where your files went. If an error occurs during the download process (e.g., the Google Drive link requires permission, your Drive storage is full, or the website blocked the download), you will **immediately receive a friendly email** explaining exactly what went wrong and how to fix it.
 
 ---
 ---
@@ -91,34 +78,20 @@ If you submitted the form and the requested files did not appear in your Google 
 
 ## איך להשתמש בטופס?
 
-השאר והשתמש כל הזמן בקישור לטופס האוטומטי שנישלח אליך למייל. המערכת מנגישה את התהליך כך שהוא מתאים לכל משתמש. בטופס תתבקש להדביק את הקישור ולבחור איזו פעולה לעשות. הנה פירוט מלא:
+השימוש במערכת הוא פשוט מאי פעם. השתמש בקישור לטופס האוטומטי שנשלח אליך למייל. בטופס יש **שדה אחד בלבד** - שדה הקישור! 
 
-- **קובץ או תיקייה ב-Google Drive:** 
-  - **מה לבחור בטופס:** סמן את האפשרות "העתקה מדרייב (קובץ או תיקייה)".
-  - **אם זה קישור לתיקייה:** הטופס יציג בפניך שאלה נוספת בה תישאל מה לעשות עם התיקייה. תוכל לבחור באפשרות **"העתק את כל הקבצים"** ואז המערכת תעתיק מסודר מכל תתי-התיקיות ישירות לדרייב שלך, או שתוכל לבחור לקבל **"מייל עם רשימת הקבצים"**. אם תבחר במייל, המערכת תסרוק את התיקייה ותשלח אליך הודעה מסודרת הכוללת את כל הקבצים בתיקייה הראשית, ובנוסף רשימה של **כל תתי-התיקיות ושל כל הקבצים הנמצאים עמוק בתוכן** יחד עם קישור ישיר לכל אחד מהם! כך תוכל לבחור להעתיק בעצמך רק קבצים ספציפיים שמעניינים אותך.
+**פשוט הדבק את הקישור!** המערכת מצוידת במנגנון **זיהוי חכם (Auto-Detect)** שיודע לנתח לבד את הקישור ולבצע את הפעולה המתאימה:
 
-- **הורדת קובץ משירותי אחסון / חלץ מהאינטרנט:**
-  - **מה לבחור בטופס:** סמן את האפשרות "הורדת קובץ מהאינטרנט".
-  - **מתי משתמשים:** מצוין לקישורים ישירים להורדה (כמו קובץ PDF, ארכיון Zip, או קובץ קול). 
-  - **מה קורה בקבצים גדולים (מעל 40 מגה)?** מכיוון שישנן הגבלות על זיכרון בפלטפורמה, לגבי קובץ רשת ששוקל יותר מ-40MB הסקריפט נוהג בחכמה: הוא יוריד ויפצל אותו לחלקים קטנים וממוספרים (כגון `.001`, `.002` וכו'). כל החלקים יישמרו בתיקייה ייעודית בדרייב אליה יתווסף קובץ הסבר (README.txt) בעברית, וכן שני קבצי סקריפט קטנים (למשתמשי חלונות ולמשתמשי מק/לינוקס). כשתוריד את כל התיקייה יחדיו למחשב שלך, תוכל פשוט להפעיל את אחד הסקריפטים והוא יאחד אוטומטית את כל החלקים בחזרה לקובץ המקורי ברגע אחד וללא מאמץ!
-  - **הערה חשובה במקרה של וידאו רגיל:** גם אם הקישור שקיבלת מוביל לקובץ וידאו יחיד ומוכר (כמו סרטון בסיומת `.mp4` או `.mkv` המאוחסן באתר), **יש לבחור באפשרות זו** של הורדת קובץ משום שמדובר בקובץ רגיל לכל דבר.
-
-- **הורדת דף אינטרנט מתורגם/חסום:**
-  - **מה לבחור בטופס:** סמן את האפשרות "שמירת דף אינטרנט (HTML + תמונות)".
-  - **איך זה עובד:** תכניס קישור לכתבה או מדריך טקסט (שעשוי להיות חסום אצלך בדפדפן הרגיל). הסקריפט ייגש לדף ה-HTML עם כל התמונות שעליו, יוריד אותן לשרתי גוגל ויארוז הכל לתיקייה אחת נגישה אצלך בדרייב שתוכל לפתוח ולקרוא גם כשהאתר עצמו איננו פתוח.
-
-- **קורסים בסטרימינג ווידאו מקוטע (HLS / m3u8):**
-  - **מה לבחור בטופס:** סמן באפשרות "איסוף קישורי וידאו מדף".
-  - **הסבר פשוט - למה זה נועד:** אתרי קורסים ווידאו רבים לא מגישים "קובץ וידאו אחד רגיל" שאפשר להוריד. במקום זה, הם חותכים את הווידאו למאות חתיכות (מקטעים) זעירות שמשודרות לדפדפן ברצף (לרוב קבצים עם סיומות מוזרות כמו `m3u8` או `.ts`). פעולות הורדה רגילות פשוט יכשלו שם כי אין קובץ אחד מושלם לקחת. אולם אם תבחר באפשרות זו – הסקריפט יעשה את העבודה הקשה של איתור כל מאות המקטעים הזעירים הללו והורדה של כולם אל תיקייה מיוחדת עבורך. *(כפי שצוין לפני כן, עבור קובץ וידאו "רגיל" אחד שלם שאינו מפוצל, יש לבחור בפעולת הורדת הקבצים הרגילה)*.
+- **קבצים ישירים ודפי אינטרנט:** אם תדביק קישור להורדת קובץ (PDF, Zip, MP4) או קישור לכתבה/דף אינטרנט, המערכת תזהה זאת ותוריד את הקובץ (או תשמור את הדף כקובץ HTML מלא עם תמונות) ישירות לדרייב. המערכת תומכת בקבצי ענק ללא צורך בפיצול.
+- **סרטוני יוטיוב:** פשוט תדביק קישור ליוטיוב והמערכת תחלץ ותוריד את הסרטון לדרייב שלך.
+- **תיקיות מגוגל דרייב:** אם תדביק קישור לתיקייה בדרייב, המערכת תסרוק אותה ו**תשלח אליך מייל**. במייל יופיעו כפתורים להורדת התיקייה כולה בלחיצה אחת, או רשימה של כל הקבצים ותתי-התיקיות כדי שתוכל לבחור בלחיצה פשוטה מה להוריד. לחיצה על כפתור תפתח את הטופס ממולא מראש וכל מה שיישאר לך זה ללחוץ "שלח"!
+- **וידאו בסטרימינג (HLS / m3u8):** אם תדביק קישור של וידאו מקוטע (קורסים וכד'), המערכת תזהה את איכויות הוידאו הזמינות ו**תשלח אליך מייל**. פשוט בחר את האיכות הרצויה מהמייל להורדה.
+- **קישורים מקוצרים:** המערכת פותחת אוטומטית קישורים מקוצרים (כמו bit.ly) כדי להגיע ליעד האמיתי בעצמה.
 
 <a id="faq"></a>
 
-## איתור שגיאות (לאן נעלמו לי הקבצים?)
-אם מילאת את הטופס, חיכית מספיק זמן והקובץ המיוחל מעולם לא צץ ב-Google Drive, הנה הדרך לבדוק מה השתבש:
-1. היכנס חזרה לממשק הסקריפט שלך (דרך האתר: [script.google.com](https://script.google.com) והפרויקט שלך).
-2. בסרגל הצדדי, לחץ על לשונית ה-**Executions** (הפעלות - סמל של רשימה עם לחצן פליי עליו).
-3. מולך תופיע רשימה של ההרצות האחרונות. מצא את ההרצה שכותרת הפונקציה שלה היא `processFormResponses` במועד המתאים. הסתכל על הסטטוס באותה השורה ("Failed" לנכשל או "Completed" להושלם).
-4. לחץ על השורה הספציפית הזו כדי לפתוח ולצפות במטריקה פנימית.
-5. במסך שנפתח, הסתכל בחלק של ה-**Logs** (היומן). קרא בעיון מה כתוב שם: ייתכן שהסקריפט מצא שהקישור אינו זמין עוד להורדה, שאסור לו לגשת (אין הרשאת שיתוף כללית), שהקובץ גדול מכפי הקיבולת המקסימלית, או כל שגיאה אחרת המסבירה את הסיבה לתקלה.
+## התראות שגיאה חכמות למייל
+
+אתה כבר לא צריך לתהות לאן נעלמו הקבצים שלך. אם יש בעיה כלשהי בהורדה (למשל: אין הרשאת צפייה לקישור הדרייב שהזנת, נגמר לך המקום באחסון של גוגל, או ששרת האתר סירב להורדה) - המערכת **תשלח אליך מיד אימייל בעברית פשוטה וברורה** המסביר בדיוק למה ההורדה נכשלה ומה עליך לעשות כדי לתקן זאת.
 
 </div>
