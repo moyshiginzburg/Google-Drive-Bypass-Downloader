@@ -40,7 +40,7 @@ Using the system is incredibly simple. You only need the personal form link that
 - **Direct Files & Webpages:** If you paste a direct download link (PDF, Zip, MP4) or a regular webpage, the system will download or save it directly to your Google Drive. It seamlessly handles large files using Google's Resumable Upload API.
 - **YouTube Videos:** Note that downloading from YouTube is currently not supported.
 - **Google Drive Folders:** If you paste a link to a Google Drive folder, the system will scan it and **send you an email**. The email will contain buttons to either download the entire folder at once, or browse the subfolders and files to pick exactly what you want to download with one click.
-- **Streaming Video (HLS / m3u8):** If you paste a link to a streaming video playlist, the system will parse the available resolutions and **send you an email**. You can simply click the quality you prefer in the email to start the download.
+- **Streaming Video (HLS / m3u8):** If you paste a link to a streaming video playlist, the system will parse the available resolutions and **send you an email**. You can simply click the quality you prefer in the email to start the download. If the stream keeps its audio in a separate track, the audio is saved as a second file (`..._audio.ts`) next to the video (it cannot be merged inside Apps Script; any player such as VLC can load it as an external audio track, or merge with `ffmpeg -i video.ts -i video_audio.ts -c copy out.mp4`).
 - **URL Shorteners:** The system automatically resolves shortened links (like bit.ly) to discover the true destination.
 
 ## Error Notifications
@@ -85,7 +85,7 @@ You never have to wonder where your files went. If an error occurs during the do
 - **קבצים ישירים ודפי אינטרנט:** אם תדביק קישור להורדת קובץ (PDF, Zip, MP4) או קישור לכתבה/דף אינטרנט, המערכת תזהה זאת ותוריד את הקובץ (או תשמור את הדף כקובץ HTML מלא עם תמונות) ישירות לדרייב. המערכת תומכת בקבצי ענק ללא צורך בפיצול.
 - **סרטוני יוטיוב:** שימו לב, המערכת אינה תומכת בהורדה מיוטיוב כרגע.
 - **תיקיות מגוגל דרייב:** אם תדביק קישור לתיקייה בדרייב, המערכת תסרוק אותה ו**תשלח אליך מייל**. במייל יופיעו כפתורים להורדת התיקייה כולה בלחיצה אחת, או רשימה של כל הקבצים ותתי-התיקיות כדי שתוכל לבחור בלחיצה פשוטה מה להוריד. לחיצה על כפתור תפתח את הטופס ממולא מראש וכל מה שיישאר לך זה ללחוץ "שלח"!
-- **וידאו בסטרימינג (HLS / m3u8):** אם תדביק קישור של וידאו מקוטע (קורסים וכד'), המערכת תזהה את איכויות הוידאו הזמינות ו**תשלח אליך מייל**. פשוט בחר את האיכות הרצויה מהמייל להורדה.
+- **וידאו בסטרימינג (HLS / m3u8):** אם תדביק קישור של וידאו מקוטע (קורסים וכד'), המערכת תזהה את איכויות הוידאו הזמינות ו**תשלח אליך מייל**. פשוט בחר את האיכות הרצויה מהמייל להורדה. אם השמע בשידור נמצא ברצועה נפרדת, הוא יישמר כקובץ נוסף (`..._audio.ts`) לצד הוידאו (אי אפשר לאחד אותם בתוך הסקריפט; ניתן לנגן יחד ב-VLC או לאחד עם ffmpeg).
 - **קישורים מקוצרים:** המערכת פותחת אוטומטית קישורים מקוצרים (כמו bit.ly) כדי להגיע ליעד האמיתי בעצמה.
 
 <a id="faq"></a>

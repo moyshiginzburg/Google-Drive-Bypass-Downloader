@@ -1,6 +1,6 @@
 // ============================================================
 // Google Drive Bypass Downloader
-// Version: v2026.08.11
+// Version: v2026.11.08
 // GitHub: https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader
 // ============================================================
 // UI — adds a setup menu when the form editor is opened
@@ -300,6 +300,17 @@ function processFormResponses() {
         Logger.log("זוהה פרמטר מיוחד בקישור: " + forceAction);
       }
 
+      // Purpose: HLS quality links sent by email may carry a separate audio
+      // rendition (#hls_audio=<encoded url>). Extract it so the audio track is
+      // downloaded too after the video track; otherwise the video is silent.
+      var hlsAudioUrl = null;
+      var audioMatch = origUrl.match(/#hls_audio=([^&#]+)/);
+      if (audioMatch) {
+        hlsAudioUrl = decodeURIComponent(audioMatch[1]);
+        origUrl = origUrl.replace(/#.*$/, "");
+        Logger.log("Separate HLS audio track detected: " + hlsAudioUrl);
+      }
+
     // Resolve redirects (important for bit.ly etc)
     var resolved = resolveRedirects(origUrl);
     var url = resolved.url;
@@ -365,6 +376,7 @@ function processFormResponses() {
       }
       var type = autoAction === "m3u8" ? "m3u8" : "bin";
       var nj = { url: url, ts: ts, type: type, fn: null, fid: null, bDone: 0, sz: -1, session: null };
+      if (type === "m3u8" && hlsAudioUrl) nj.audioUrl = hlsAudioUrl;
       if (!runJob(nj, start, folder)) {
         p.setProperty("CURRENT_JOB", JSON.stringify(nj));
         manageTrigger(true);
@@ -843,9 +855,10 @@ function handleM3U8(j, s, folder) {
     
     // Check if master playlist
     if (manifest.indexOf("#EXT-X-STREAM-INF") !== -1) {
-      var lines = manifest.split("\n");
+      var lines = manifest.split(/\r?\n/);
       var qualities = [];
-      
+      var audioGroups = parseHlsAudioGroups(lines, manifestUrl);
+
       for (var i = 0; i < lines.length; i++) {
         if (lines[i].indexOf("#EXT-X-STREAM-INF") !== -1) {
           var bwMatch = lines[i].match(/BANDWIDTH=(\d+)/);
@@ -860,7 +873,10 @@ function handleM3U8(j, s, folder) {
                if (streamUrl.indexOf("/") === 0) streamUrl = baseDomain + streamUrl;
                else streamUrl = manifestUrl.substring(0, manifestUrl.lastIndexOf("/") + 1) + streamUrl;
             }
-            qualities.push({ bw: bw, res: res, url: streamUrl });
+            // Video-only variants reference a separate audio group (AUDIO="...")
+            var audioGrpMatch = lines[i].match(/AUDIO="([^"]+)"/);
+            var audioUrl = audioGrpMatch ? (audioGroups[audioGrpMatch[1]] || null) : null;
+            qualities.push({ bw: bw, res: res, url: streamUrl, audioUrl: audioUrl });
           }
         }
       }
@@ -883,8 +899,11 @@ function handleM3U8(j, s, folder) {
         ];
         
         for (var q = 0; q < qualities.length; q++) {
-          var pfUrl = createPrefilledFormLink(formId, qualities[q].url) || qualities[q].url;
+          var linkUrl = qualities[q].url;
+          if (qualities[q].audioUrl) linkUrl += "#hls_audio=" + encodeURIComponent(qualities[q].audioUrl);
+          var pfUrl = createPrefilledFormLink(formId, linkUrl) || linkUrl;
           var label = "איכות " + qualities[q].res + " (רוחב פס: " + qualities[q].bw + ")";
+          if (qualities[q].audioUrl) label += " — השמע יישמר כקובץ נפרד";
           txtLines.push("🎥 " + label);
           txtLines.push("   " + pfUrl);
           txtLines.push("");
@@ -904,9 +923,12 @@ function handleM3U8(j, s, folder) {
       }
     }
     
-    var segs = manifest.split("\n").filter(function(l) { return l.trim() && l[0] !== "#"; });
-    var base = manifestUrl.substring(0, manifestUrl.lastIndexOf("/") + 1);
-    
+    var segs = manifest.split(/\r?\n/)
+      .map(function(l) { return l.trim(); })
+      .filter(function(l) { return l && l[0] !== "#"; });
+    var base = manifestUrl.split("?")[0];
+    base = base.substring(0, base.lastIndexOf("/") + 1);
+
     j.segs = segs.map(function(seg) {
       if (seg.indexOf("http") === 0) return seg;
       if (seg.indexOf("/") === 0) return baseDomain + seg;
@@ -977,7 +999,7 @@ function handleM3U8(j, s, folder) {
       var upCode = upResp.getResponseCode();
       if (upCode === 200 || upCode === 201) {
         Logger.log("העלאה הושלמה בהצלחה לדרייב עבור וידאו: " + j.fn);
-        return true; // We are completely done
+        return startHlsAudioPhase(j, s, folder);
       } else if (upCode === 308) {
         var rangeHeader = getHeaderCaseInsensitive(upResp.getHeaders(), "Range");
         if (rangeHeader) {
@@ -1006,7 +1028,43 @@ function handleM3U8(j, s, folder) {
   }
   
   Logger.log("הורדת כל מקטעי הוידאו הושלמה בהצלחה.");
-  return true;
+  return startHlsAudioPhase(j, s, folder);
+}
+
+// ============================================================
+// HLS separate audio track support
+// ============================================================
+// Purpose: Some HLS streams (e.g. Israeli TV CDNs) keep the audio in a
+//          separate rendition, so the video segments are silent.
+// Method:  parseHlsAudioGroups() maps each audio GROUP-ID in the master
+//          playlist to its playlist URL (preferring DEFAULT=YES).
+//          startHlsAudioPhase() is called when the video upload finishes:
+//          if the job carries an audioUrl, the same job is reset to
+//          download the audio playlist into "<name>_audio.ts" next to the
+//          video (Apps Script cannot mux the two into one file).
+function parseHlsAudioGroups(lines, manifestUrl) {
+  var groups = {};
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.indexOf("#EXT-X-MEDIA") !== 0 || line.indexOf("TYPE=AUDIO") === -1) continue;
+    var gid = line.match(/GROUP-ID="([^"]+)"/);
+    var uri = line.match(/URI="([^"]+)"/);
+    if (!gid || !uri) continue;
+    var isDefault = line.indexOf("DEFAULT=YES") !== -1;
+    if (!groups[gid[1]] || isDefault) groups[gid[1]] = resolveUrl(manifestUrl, uri[1]);
+  }
+  return groups;
+}
+
+function startHlsAudioPhase(j, s, folder) {
+  if (!j.audioUrl || j.isAudioPhase) return true; // Nothing more to do
+  Logger.log("Video track done. Starting separate audio track: " + j.audioUrl);
+  j.url = j.audioUrl;
+  j.audioUrl = null;
+  j.isAudioPhase = true;
+  j.fn = j.fn.replace(/\.ts$/, "") + "_audio.ts";
+  j.segs = null; j.session = null; j.bDone = 0; j.bUp = 0; j.errs = 0;
+  return handleM3U8(j, s, folder);
 }
 
 // ============================================================
