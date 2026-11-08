@@ -22,6 +22,13 @@ function onOpen() {
 // ============================================================
 var CHUNK_BYTES = 40 * 1024 * 1024; // Size of each chunk in split download
 var MAX_RUN_MS  = 240 * 1000;        // Maximum runtime before stopping
+// Temporary failures (network errors, HTTP 408/429/5xx) are retried this many
+// times, one run (~1 minute) apart, before the job is abandoned with an email.
+var MAX_TRANSIENT_RETRIES = 5;
+// Next run after a run that still has work (one-shot trigger delay)
+var NEXT_RUN_DELAY_MS = 60 * 1000;
+// Safety-net run in case Google kills a run at the 6-minute hard limit
+var WATCHDOG_DELAY_MS = 7 * 60 * 1000;
 
 // Script version shown to users (form description + email footer) so that
 // bug reports reveal which version is installed. Keep in sync with the
@@ -180,11 +187,16 @@ function setupAll() {
 }
 
 // ============================================================
-// Process responses — runs automatically every minute
+// Process responses — runs from one-shot triggers while there is work
 // ============================================================
 function processFormResponses() {
   var lock = getS("Lock" + "Service").getScriptLock();
-  if (!lock.tryLock(15000)) return;
+  if (!lock.tryLock(15000)) {
+    // Another run is active: make sure a later run picks up anything it misses
+    manageTrigger(true);
+    return;
+  }
+  armWatchdogTrigger_();
 
   var p = getS("Properties" + "Service").getScriptProperties();
   
@@ -209,6 +221,7 @@ function processFormResponses() {
       }
     } catch(e) {}
     p.deleteProperty("GLOBAL_CRASH");
+    disarmWatchdogTrigger_();
     lock.releaseLock();
     return;
   }
@@ -224,6 +237,7 @@ function processFormResponses() {
 
   if (!folder || !formId) {
     Logger.log("שגיאה: חסרות הגדרות. הפעל setupAll() תחילה.");
+    disarmWatchdogTrigger_();
     lock.releaseLock();
     return;
   }
@@ -401,7 +415,9 @@ function processFormResponses() {
     p.setProperty("LAST_TS", ts.toString());
   }
 
-  manageTrigger(false);
+  // No work left: remove only this run's safety-net trigger. A trigger created
+  // meanwhile by a new form submission is kept so that submission is processed.
+  disarmWatchdogTrigger_();
   lock.releaseLock();
   
   } finally {
@@ -729,12 +745,14 @@ function downloadSmart(j, s, folder) {
   if (j.session) {
     try {
       var confirmed = queryResumableSessionProgress(j.session);
-      if (confirmed !== -1) {
-        j.bDone = confirmed;
-        Logger.log("ממשיך העלאה קיימת לדרייב. התקדמות נוכחית: " + confirmed + " בתים מתוך " + (j.sz ? j.sz : "לא ידוע"));
-      } else {
-        j.session = null; j.bDone = 0;
+      if (confirmed === -1) {
+        // Drive already holds the complete file (e.g. the run was killed right
+        // after the final chunk). Starting over would create a duplicate.
+        Logger.log("Upload session already finalized; file is complete: " + j.fn);
+        return true;
       }
+      j.bDone = confirmed;
+      Logger.log("ממשיך העלאה קיימת לדרייב. התקדמות נוכחית: " + confirmed + " בתים מתוך " + (j.sz ? j.sz : "לא ידוע"));
     } catch(e) {
       j.session = null; j.bDone = 0;
     }
@@ -761,9 +779,8 @@ function downloadSmart(j, s, folder) {
       chunkResp = uA.fetch(j.url, { headers: { Range: "bytes=" + offset + "-" + rangeEnd }, muteHttpExceptions: true });
     } catch(e) {
       Logger.log("שגיאה בהורדה משרת מקור: " + e);
-      j.errs = (j.errs || 0) + 1;
-      if (j.errs >= 3) throw new Error("שגיאת רשת חוזרת מהמקור: " + e.toString());
-      return false;
+      if (isFetchQuotaError_(e)) return false; // Fetch quota: continue in a later run
+      return registerTransientError_(j, "source fetch: " + e);
     }
     
     var code = chunkResp.getResponseCode();
@@ -794,6 +811,9 @@ function downloadSmart(j, s, folder) {
       if (!j.sz && chunkLen < CHUNK_BYTES) { isLastChunk = true; j.sz = offset + chunkLen; }
     } else if (code === 416) {
       isLastChunk = true; chunkLen = 0; payload = new Uint8Array(0);
+    } else if (isTransientHttpStatus_(code)) {
+      Logger.log("שגיאת HTTP זמנית מהמקור: " + code);
+      return registerTransientError_(j, "source HTTP " + code);
     } else {
       Logger.log("שגיאת HTTP מהמקור: " + code); 
       var errType = (code === 404) ? "HTTP_404" : ((code === 403 || code === 401) ? "HTTP_FORBIDDEN" : "GENERAL_DOWNLOAD_ERROR");
@@ -833,15 +853,18 @@ function downloadSmart(j, s, folder) {
         j.errs = 0;
       } else {
         Logger.log("שגיאה בהעלאה לדרייב HTTP " + upCode);
-        var upErrType = (upCode === 403) ? "DRIVE_STORAGE_FULL" : "GENERAL_DOWNLOAD_ERROR";
+        var upBody = "";
+        try { upBody = upResp.getContentText(); } catch (eb) {}
+        var upErrType = classifyDriveUploadError_(upCode, upBody);
+        if (!upErrType) return registerTransientError_(j, "Drive upload HTTP " + upCode);
         sendFriendlyErrorEmail(j.url, upErrType, "Drive Upload HTTP " + upCode);
         return true;
       }
     } catch(e) {
+      if (e && String(e.message || "").indexOf("שגיאה זמנית שחזרה") === 0) throw e;
       Logger.log("שגיאה בהעלאה לדרייב: " + e);
-      j.errs = (j.errs || 0) + 1;
-      if (j.errs >= 3) throw new Error("שגיאת רשת חוזרת בדרייב: " + e.toString());
-      return false;
+      if (isFetchQuotaError_(e)) return false;
+      return registerTransientError_(j, "Drive upload: " + e);
     }
   }
 }
@@ -864,7 +887,20 @@ function handleM3U8Inner_(j, s, folder) {
   {
     var manifestUrl = j.url;
     var baseDomain = manifestUrl.match(/^https?:\/\/[^\/]+/)[0];
-    var manifest = uA.fetch(manifestUrl).getContentText();
+    var manifest;
+    try {
+      var mResp = uA.fetch(manifestUrl, { muteHttpExceptions: true });
+      var mCode = mResp.getResponseCode();
+      if (mCode !== 200) {
+        if (isTransientHttpStatus_(mCode)) return registerTransientError_(j, "playlist HTTP " + mCode);
+        throw new Error("HTTP " + mCode + " for playlist");
+      }
+      manifest = mResp.getContentText();
+    } catch (e) {
+      if (String(e.message || "").indexOf("HTTP ") === 0 || String(e.message || "").indexOf("שגיאה זמנית שחזרה") === 0) throw e;
+      if (isFetchQuotaError_(e)) return false;
+      return registerTransientError_(j, "playlist fetch: " + e);
+    }
     
     // Check if master playlist
     if (manifest.indexOf("#EXT-X-STREAM-INF") !== -1) {
@@ -1005,10 +1041,14 @@ function handleM3U8Inner_(j, s, folder) {
       bytes = fetchHlsSegmentBytes(j.segs[i], keyCache);
     } catch (e) {
       Logger.log("שגיאה בהורדת מקטע מס' " + i + ": " + e);
-      j.errs = (j.errs || 0) + 1;
-      if (j.errs >= 3) throw new Error("שגיאת רשת חוזרת עבור M3U8: " + e.toString());
+      // HTTP errors are temporary only for 408/429/5xx; exceptions without an
+      // HTTP code are network errors (temporary). Others are final.
+      if (e && e.transient === false) throw e;
+      var flushed = Math.floor(buf.length / ALIGN) * ALIGN;
+      if (flushed > 0 && uploadHlsChunk(j, buf, flushed, false, mime) === "error") return true;
       saveHlsResumePoint(j, segStart, i, pos);
-      return false; // Retry later
+      if (isFetchQuotaError_(e)) return false; // Fetch quota: continue later, not counted
+      return registerTransientError_(j, "segment " + i + ": " + e);
     }
     segStart[i] = pos;
     pos += bytes.length;
@@ -1025,11 +1065,10 @@ function handleM3U8Inner_(j, s, folder) {
       return startHlsAudioPhase(j, s, folder);
     }
     if (res === "error") return true; // Friendly error email already sent
-    if (res === "retry") {
-      j.errs = (j.errs || 0) + 1;
-      if (j.errs >= 3) throw new Error("שגיאת העלאה חוזרת לדרייב עבור M3U8");
+    if (res === "retry" || res === "quota") {
       saveHlsResumePoint(j, segStart, i + 1, pos);
-      return false;
+      if (res === "quota") return false;
+      return registerTransientError_(j, "HLS Drive upload");
     }
     // res is the number of bytes Drive persisted from the buffer
     buf = buf.slice(res);
@@ -1045,7 +1084,8 @@ function handleM3U8Inner_(j, s, folder) {
   }
   if (fin === "error") return true;
   saveHlsResumePoint(j, segStart, total, pos);
-  return false;
+  if (fin === "quota") return false;
+  return registerTransientError_(j, "HLS final upload");
 }
 
 // Map Drive's confirmed offset (j.bUp) back to a (segment, skip) resume point.
@@ -1064,7 +1104,8 @@ function saveHlsResumePoint(j, segStart, nextIdx, endPos) {
 }
 
 // Upload the first sendLen bytes of buf at offset j.bUp.
-// Returns "done", "error", "retry", or the number of bytes Drive persisted.
+// Returns "done", "error", "retry" (temporary), "quota" (UrlFetch limit), or the
+// number of bytes Drive persisted.
 function uploadHlsChunk(j, buf, sendLen, isFinal, mime) {
   var uA = getS("Url" + "Fetch" + "App");
   var payload = buf.slice(0, sendLen).map(function(v) { return v > 127 ? v - 256 : v; });
@@ -1086,7 +1127,7 @@ function uploadHlsChunk(j, buf, sendLen, isFinal, mime) {
     });
   } catch (e) {
     Logger.log("Drive upload request failed: " + e);
-    return "retry";
+    return isFetchQuotaError_(e) ? "quota" : "retry";
   }
   var code = resp.getResponseCode();
   if (code === 200 || code === 201) return "done";
@@ -1098,9 +1139,12 @@ function uploadHlsChunk(j, buf, sendLen, isFinal, mime) {
     j.bUp = Math.max(j.bUp, confirmed);
     return persisted;
   }
-  if (code >= 500) return "retry";
+  var body = "";
+  try { body = resp.getContentText(); } catch (eb) {}
+  var cat = classifyDriveUploadError_(code, body);
+  if (!cat) return "retry";
   Logger.log("שגיאה בהעלאה לדרייב: קוד " + code);
-  sendFriendlyErrorEmail(j.url, code === 403 ? "DRIVE_STORAGE_FULL" : "GENERAL_DOWNLOAD_ERROR", "Drive Upload HTTP " + code);
+  sendFriendlyErrorEmail(j.url, cat, "Drive Upload HTTP " + code);
   return "error";
 }
 
@@ -1175,14 +1219,22 @@ function fetchHlsSegmentBytes(sg, keyCache) {
   if (sg.br) opts.headers.Range = "bytes=" + sg.br[1] + "-" + (sg.br[1] + sg.br[0] - 1);
   var r = uA.fetch(sg.u, opts);
   var code = r.getResponseCode();
-  if (code !== 200 && code !== 206) throw new Error("HTTP " + code + " for segment");
+  if (code !== 200 && code !== 206) {
+    var se = new Error("HTTP " + code + " for segment");
+    se.transient = isTransientHttpStatus_(code);
+    throw se;
+  }
   var data = toUnsignedBytes(r.getContent());
   if (sg.br && code === 200) data = data.slice(sg.br[1], sg.br[1] + sg.br[0]);
   if (!sg.key) return data;
 
   if (!keyCache[sg.key.uri]) {
     var kr = uA.fetch(sg.key.uri, { muteHttpExceptions: true });
-    if (kr.getResponseCode() !== 200) throw new Error("HTTP " + kr.getResponseCode() + " for AES key");
+    if (kr.getResponseCode() !== 200) {
+      var ke = new Error("HTTP " + kr.getResponseCode() + " for AES key");
+      ke.transient = isTransientHttpStatus_(kr.getResponseCode());
+      throw ke;
+    }
     keyCache[sg.key.uri] = toUnsignedBytes(kr.getContent());
   }
   var iv = sg.key.iv ? hexToBytes16(sg.key.iv) : seqToIv(sg.seq);
@@ -1518,21 +1570,88 @@ function guessMimeType(filename) {
   return map[ext] || "application/octet-stream";
 }
 
+// Purpose: Schedule (or cancel) the next processFormResponses run.
+// Method:  One-shot triggers only (no recurring every-minute trigger). Scheduling
+//          always deletes existing processFormResponses triggers first and then
+//          creates a fresh one, never "skip if one exists": a one-shot trigger
+//          that already fired (or failed inside Google) can stay registered,
+//          and trusting it would stop all processing.
 function manageTrigger(enable) {
-  var sA       = getS("Script" + "App");
-  var triggers = sA.getProjectTriggers();
-  var existing = triggers.filter(function(t) {
-    return t.getHandlerFunction() === "processFormResponses";
+  var sA = getS("Script" + "App");
+  sA.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === "processFormResponses") sA.deleteTrigger(t);
   });
+  getS("Properties" + "Service").getScriptProperties().deleteProperty("WATCHDOG_TRIG_ID");
+  if (enable) {
+    sA.newTrigger("processFormResponses").timeBased().after(NEXT_RUN_DELAY_MS).create();
+    Logger.log("Next run scheduled in " + (NEXT_RUN_DELAY_MS / 1000) + "s.");
+  }
+}
 
-  if (enable && existing.length === 0) {
-    sA.newTrigger("processFormResponses").timeBased().everyMinutes(1).create();
-    Logger.log("טריגר הופעל.");
+// Purpose: Recover automatically if Google kills a run at its 6-minute hard limit
+//          (no code runs then, so the run cannot schedule its own continuation).
+// Method:  At the start of every run, all pending processFormResponses triggers are
+//          replaced by a single safety-net trigger 7 minutes ahead and its id is
+//          stored. A run that ends with work left calls manageTrigger(true), which
+//          replaces it with the normal 1-minute trigger; a run that ends with no
+//          work deletes only that safety-net trigger (disarmWatchdogTrigger_).
+function armWatchdogTrigger_() {
+  var sA = getS("Script" + "App");
+  sA.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === "processFormResponses") sA.deleteTrigger(t);
+  });
+  var t = sA.newTrigger("processFormResponses").timeBased().after(WATCHDOG_DELAY_MS).create();
+  getS("Properties" + "Service").getScriptProperties().setProperty("WATCHDOG_TRIG_ID", t.getUniqueId());
+}
+
+function disarmWatchdogTrigger_() {
+  var p = getS("Properties" + "Service").getScriptProperties();
+  var id = p.getProperty("WATCHDOG_TRIG_ID");
+  if (!id) return;
+  var sA = getS("Script" + "App");
+  sA.getProjectTriggers().forEach(function(t) {
+    if (t.getUniqueId() === id) sA.deleteTrigger(t);
+  });
+  p.deleteProperty("WATCHDOG_TRIG_ID");
+}
+
+// ============================================================
+// Error classification (shared by direct and HLS downloads)
+// ============================================================
+// Purpose: Decide whether a failure is worth retrying in a later run.
+// Method:  Time-limit stops are not errors. UrlFetch bandwidth/quota limits are
+//          treated like a time-limit stop (retry later, not counted). Network
+//          exceptions and HTTP 408/429/5xx are temporary: counted in j.errs and
+//          retried up to MAX_TRANSIENT_RETRIES runs while keeping the Drive upload
+//          session. Other HTTP errors are final and reported by email.
+function isTransientHttpStatus_(code) {
+  return code === 408 || code === 429 || code >= 500;
+}
+
+function isFetchQuotaError_(e) {
+  var m = String(e && e.message ? e.message : e);
+  return /bandwidth|רוחב פס|too many times|יותר מדי פעמים/i.test(m);
+}
+
+// Count a temporary failure; throws (=> error email via runJob) after too many.
+function registerTransientError_(j, what) {
+  j.errs = (j.errs || 0) + 1;
+  Logger.log("Temporary error " + j.errs + "/" + MAX_TRANSIENT_RETRIES + ": " + what);
+  if (j.errs > MAX_TRANSIENT_RETRIES) {
+    throw new Error("שגיאה זמנית שחזרה " + MAX_TRANSIENT_RETRIES + " פעמים: " + what);
   }
-  if (!enable) {
-    existing.forEach(function(t) { sA.deleteTrigger(t); });
-    if (existing.length > 0) Logger.log("טריגר כובה.");
+  return false; // "not finished" => resumed in the next run
+}
+
+// Map a failed Drive upload response to the friendly error category.
+// Returns null when the failure is temporary (rate limit / server error).
+function classifyDriveUploadError_(code, bodyText) {
+  if (isTransientHttpStatus_(code)) return null;
+  if (code === 403) {
+    if (/rateLimitExceeded|userRateLimitExceeded/i.test(bodyText || "")) return null;
+    if (/storageQuotaExceeded|quotaExceeded/i.test(bodyText || "")) return "DRIVE_STORAGE_FULL";
   }
+  return "GENERAL_DOWNLOAD_ERROR";
 }
 
 // Translate service names at runtime — bypasses keyword filters
