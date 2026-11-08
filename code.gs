@@ -1,6 +1,6 @@
 // ============================================================
 // Google Drive Bypass Downloader
-// Version: v2026.11.08
+// Version: 2026.11.08
 // GitHub: https://github.com/moyshiginzburg/Google-Drive-Bypass-Downloader
 // ============================================================
 // UI — adds a setup menu when the form editor is opened
@@ -22,6 +22,12 @@ function onOpen() {
 // ============================================================
 var CHUNK_BYTES = 40 * 1024 * 1024; // Size of each chunk in split download
 var MAX_RUN_MS  = 240 * 1000;        // Maximum runtime before stopping
+
+// Script version shown to users (form description + email footer) so that
+// bug reports reveal which version is installed. Keep in sync with the
+// "Version:" header comment, CHANGELOG.md and index.html.
+var SCRIPT_VERSION = "2026.11.08";
+var VERSION_LINE_PREFIX = "גרסה: ";
 
 // ============================================================
 // Installation function — Run only once!
@@ -54,6 +60,7 @@ function setupAll() {
 
     // --- Get the bound form (this script's container) ---
     var form = fmA.getActiveForm();
+    syncFormVersionLine_(form);
 
     // --- Publish the form so it accepts responses ---
     var responsesBlocked = false;
@@ -128,7 +135,7 @@ function setupAll() {
     var htmlBody = '<div dir="rtl" style="text-align: right; font-family: sans-serif; white-space: pre-wrap;">' + bodyText + '</div>';
 
     if (ownerEmail) {
-      mA.sendEmail({
+      sendMailWithVersion_(mA, {
         to: ownerEmail,
         subject: subject,
         body: bodyText,
@@ -269,6 +276,7 @@ function processFormResponses() {
 
   // 3 — New responses from the form
   var form = getS("Form" + "App").openById(formId);
+  syncFormVersionLine_(form);
   var resps = form.getResponses();
   var last  = parseFloat(p.getProperty("LAST_TS") || "0");
 
@@ -636,7 +644,7 @@ function sendFolderListEmail(folder, mA) {
     htmlLines.push('<p>' + emptyMsg + '</p>');
   }
 
-  mA.sendEmail({
+  sendMailWithVersion_(mA, {
     to: owner,
     subject: "📥 בחירת קבצים להורדה מתיקייה: " + folder.getName(),
     body: lines.join("\n"),
@@ -842,13 +850,18 @@ function downloadSmart(j, s, folder) {
 // Download HLS video segments (m3u8) as a single file
 // ============================================================
 function handleM3U8(j, s, folder) {
+  // Segment lists can be huge; never persist them into the job state
+  try { return handleM3U8Inner_(j, s, folder); } finally { delete j.segs; }
+}
+
+function handleM3U8Inner_(j, s, folder) {
   var uA = getS("Url"   + "Fetch" + "App");
   var dA = getS("Drive" + "App");
 
   if (!j.fn)  j.fn  = "video_" + j.ts + ".ts";
   if (j.bUp === undefined) j.bUp = 0;
 
-  if (!j.segs) {
+  {
     var manifestUrl = j.url;
     var baseDomain = manifestUrl.match(/^https?:\/\/[^\/]+/)[0];
     var manifest = uA.fetch(manifestUrl).getContentText();
@@ -911,7 +924,7 @@ function handleM3U8(j, s, folder) {
         }
         htmlLines.push('</ul></div>');
         
-        mA.sendEmail({
+        sendMailWithVersion_(mA, {
           to: owner,
           subject: "🎥 בחר איכות וידאו להורדה",
           body: txtLines.join("\n"),
@@ -922,113 +935,358 @@ function handleM3U8(j, s, folder) {
         return true; // We abort this job because the user will submit a new form entry with the specific quality.
       }
     }
-    
-    var segs = manifest.split(/\r?\n/)
-      .map(function(l) { return l.trim(); })
-      .filter(function(l) { return l && l[0] !== "#"; });
-    var base = manifestUrl.split("?")[0];
-    base = base.substring(0, base.lastIndexOf("/") + 1);
 
-    j.segs = segs.map(function(seg) {
-      if (seg.indexOf("http") === 0) return seg;
-      if (seg.indexOf("/") === 0) return baseDomain + seg;
-      return base + seg;
-    });
+    // Media playlist: build the ordered list of byte sources for this run.
+    // Rebuilt on every run (never persisted) to stay under the 9KB
+    // PropertiesService value limit for long streams.
+    j.segs = parseHlsMediaPlaylist(manifest, manifestUrl);
   }
+
+  // fMP4 streams (EXT-X-MAP) are saved as .mp4; MPEG-TS stays .ts
+  var isFmp4 = j.segs.some(function(sg) { return sg.isInit; });
+  if (!j.session && !j.mime) {
+    j.mime = isFmp4 ? "video/mp4" : "video/mp2t";
+    if (isFmp4) j.fn = j.fn.replace(/\.ts$/, ".mp4");
+  }
+  var mime = j.mime || "video/mp2t";
 
   // Create or resume upload session
   if (j.session) {
     try {
       var confirmed = queryResumableSessionProgress(j.session);
-      if (confirmed !== -1) {
-        j.bUp = confirmed;
-        Logger.log("ממשיך העלאה קיימת לוידאו. התקדמות נוכחית: " + confirmed + " בתים.");
-      } else {
-        j.session = null; j.bUp = 0; j.bDone = 0;
+      if (confirmed === -1) {
+        Logger.log("Upload session already finalized for: " + j.fn);
+        return startHlsAudioPhase(j, s, folder);
+      }
+      if (confirmed !== j.bUp) {
+        // Stored resume point does not match Drive: restart this file cleanly
+        Logger.log("Upload offset mismatch (stored " + j.bUp + ", Drive " + confirmed + "). Restarting file.");
+        j.session = null;
       }
     } catch(e) {
-      j.session = null; j.bUp = 0; j.bDone = 0;
+      j.session = null;
     }
   }
   if (!j.session) {
     Logger.log("מתחיל סשן העלאה חדש לוידאו (M3U8): " + j.fn);
-    j.session = createResumableUploadSession(j.fn, "video/mp2t", folder, "");
-    j.bUp = 0;
-    j.bDone = 0;
+    j.session = createResumableUploadSession(j.fn, mime, folder, "");
+    j.bUp = 0; j.bDone = 0; j.skip = 0;
   }
+  if (!j.skip) j.skip = 0;
 
-  Logger.log("מתחיל הורדת מקטעי וידאו. סה״כ מקטעים: " + j.segs.length + " | מתחיל ממקטע מס': " + j.bDone);
-  for (var i = j.bDone; i < j.segs.length; i++) {
+  // Purpose: Download segments and upload them to one Drive file.
+  // Method:  Segment bytes are accumulated in a buffer and uploaded in
+  //          chunks that are multiples of 256KB (a Drive resumable-upload
+  //          requirement for every chunk except the last). Bytes Drive did
+  //          not persist stay in the buffer. On a time-limit stop, the resume
+  //          point is stored as (segment index j.bDone, bytes to skip j.skip),
+  //          derived from Drive's confirmed offset j.bUp, so a resumed run
+  //          re-downloads that segment and drops the already-uploaded prefix.
+  var ALIGN = 256 * 1024;
+  var FLUSH_AT = 8 * ALIGN;            // ~2MB per upload request
+  var keyCache = {};
+  var buf = [];
+  var segStart = {};                   // stream offset where segment i begins
+  var pos = j.bUp - j.skip;            // stream offset of segment j.bDone
+  var total = j.segs.length;
+
+  Logger.log("מתחיל הורדת מקטעי וידאו. סה״כ מקטעים: " + total + " | מתחיל ממקטע מס': " + j.bDone);
+  for (var i = j.bDone; i < total; i++) {
     if (new Date().getTime() - s > MAX_RUN_MS) {
-      Logger.log("הושגה מגבלת זמן ריצה. עוצר במקטע " + i + " להמשך מאוחר יותר.");
-      j.bDone = i; return false;
+      // Flush the aligned part of the buffer so every run makes progress
+      var flushLen = Math.floor(buf.length / ALIGN) * ALIGN;
+      if (flushLen > 0 && uploadHlsChunk(j, buf, flushLen, false, mime) === "error") return true;
+      saveHlsResumePoint(j, segStart, i, pos);
+      Logger.log("הושגה מגבלת זמן ריצה. עוצר במקטע " + j.bDone + " להמשך מאוחר יותר.");
+      return false;
     }
+    var bytes;
     try {
-      var segResp = uA.fetch(j.segs[i], { muteHttpExceptions: true });
-      if (segResp.getResponseCode() !== 200) {
-        Logger.log("שגיאה בהורדת מקטע מס' " + i + ": קוד " + segResp.getResponseCode());
-        j.errs = (j.errs || 0) + 1;
-        if (j.errs >= 3) throw new Error("שגיאת רשת חוזרת מהמקור עבור מקטע " + i);
-        return false;
-      }
-      
-      var payload = segResp.getContent();
-      var chunkLen = payload.length;
-      if (chunkLen === 0) {
-        Logger.log("אזהרה: מקטע " + i + " ריק.");
-        j.bDone = i + 1;
-        continue; // Skip empty segments
-      }
-
-      var isLastSegment = (i === j.segs.length - 1);
-      var contentRange = isLastSegment
-        ? "bytes " + j.bUp + "-" + (j.bUp + chunkLen - 1) + "/" + (j.bUp + chunkLen)
-        : "bytes " + j.bUp + "-" + (j.bUp + chunkLen - 1) + "/*";
-      
-      var upResp = uA.fetch(j.session, {
-        method: 'put',
-        headers: {
-          "Authorization": "Bearer " + getOAuthToken(),
-          "Content-Range": contentRange,
-          "Content-Type": "video/mp2t"
-        },
-        payload: payload,
-        muteHttpExceptions: true
-      });
-      
-      var upCode = upResp.getResponseCode();
-      if (upCode === 200 || upCode === 201) {
-        Logger.log("העלאה הושלמה בהצלחה לדרייב עבור וידאו: " + j.fn);
-        return startHlsAudioPhase(j, s, folder);
-      } else if (upCode === 308) {
-        var rangeHeader = getHeaderCaseInsensitive(upResp.getHeaders(), "Range");
-        if (rangeHeader) {
-          var m = rangeHeader.match(/bytes=(\d+)-(\d+)/);
-          if (m) j.bUp = parseInt(m[2], 10) + 1;
-          else j.bUp += chunkLen;
-        } else {
-          j.bUp += chunkLen;
-        }
-        j.errs = 0;
-        j.bDone = i + 1; // Mark segment as done
-        if (i % 10 === 0) Logger.log("הורדו והועלו " + (i + 1) + " מקטעים מתוך " + j.segs.length);
-      } else {
-        Logger.log("שגיאה בהעלאה לדרייב מקטע " + i + ": קוד " + upCode);
-        var upErrType = (upCode === 403) ? "DRIVE_STORAGE_FULL" : "GENERAL_DOWNLOAD_ERROR";
-        sendFriendlyErrorEmail(j.url, upErrType, "Drive Upload HTTP " + upCode);
-        return true; // Abort job
-      }
-      
+      bytes = fetchHlsSegmentBytes(j.segs[i], keyCache);
     } catch (e) {
-      Logger.log("שגיאה בהורדה/העלאה של מקטע מס' " + i + ": " + e);
+      Logger.log("שגיאה בהורדת מקטע מס' " + i + ": " + e);
       j.errs = (j.errs || 0) + 1;
       if (j.errs >= 3) throw new Error("שגיאת רשת חוזרת עבור M3U8: " + e.toString());
+      saveHlsResumePoint(j, segStart, i, pos);
       return false; // Retry later
     }
+    segStart[i] = pos;
+    pos += bytes.length;
+    if (i === j.bDone && j.skip > 0) bytes = bytes.slice(j.skip);
+    for (var b = 0; b < bytes.length; b++) buf.push(bytes[b]);
+
+    var isLast = (i === total - 1);
+    if (!isLast && buf.length < FLUSH_AT) continue;
+
+    var sendLen = isLast ? buf.length : Math.floor(buf.length / ALIGN) * ALIGN;
+    var res = uploadHlsChunk(j, buf, sendLen, isLast, mime);
+    if (res === "done") {
+      Logger.log("העלאה הושלמה בהצלחה לדרייב עבור וידאו: " + j.fn);
+      return startHlsAudioPhase(j, s, folder);
+    }
+    if (res === "error") return true; // Friendly error email already sent
+    if (res === "retry") {
+      j.errs = (j.errs || 0) + 1;
+      if (j.errs >= 3) throw new Error("שגיאת העלאה חוזרת לדרייב עבור M3U8");
+      saveHlsResumePoint(j, segStart, i + 1, pos);
+      return false;
+    }
+    // res is the number of bytes Drive persisted from the buffer
+    buf = buf.slice(res);
+    j.errs = 0;
+    if (i % 20 === 0) Logger.log("הורדו והועלו " + (i + 1) + " מקטעים מתוך " + total);
   }
-  
-  Logger.log("הורדת כל מקטעי הוידאו הושלמה בהצלחה.");
-  return startHlsAudioPhase(j, s, folder);
+
+  // Loop ended without a final upload (e.g. empty trailing segments)
+  var fin = uploadHlsChunk(j, buf, buf.length, true, mime);
+  if (fin === "done") {
+    Logger.log("הורדת כל מקטעי הוידאו הושלמה בהצלחה.");
+    return startHlsAudioPhase(j, s, folder);
+  }
+  if (fin === "error") return true;
+  saveHlsResumePoint(j, segStart, total, pos);
+  return false;
+}
+
+// Map Drive's confirmed offset (j.bUp) back to a (segment, skip) resume point.
+// segStart holds the stream offset of each segment fetched in this run,
+// endPos is the stream offset right after the last fetched segment.
+function saveHlsResumePoint(j, segStart, nextIdx, endPos) {
+  if (endPos !== undefined && j.bUp >= endPos) { j.bDone = nextIdx; j.skip = 0; return; }
+  for (var k = nextIdx - 1; k >= j.bDone; k--) {
+    if (segStart[k] !== undefined && segStart[k] <= j.bUp) {
+      j.skip = j.bUp - segStart[k];
+      j.bDone = k;
+      return;
+    }
+  }
+  // Nothing fetched in this run: keep the existing resume point
+}
+
+// Upload the first sendLen bytes of buf at offset j.bUp.
+// Returns "done", "error", "retry", or the number of bytes Drive persisted.
+function uploadHlsChunk(j, buf, sendLen, isFinal, mime) {
+  var uA = getS("Url" + "Fetch" + "App");
+  var payload = buf.slice(0, sendLen).map(function(v) { return v > 127 ? v - 256 : v; });
+  var range;
+  if (sendLen === 0) {
+    if (!isFinal) return 0;
+    range = "bytes */" + j.bUp;
+  } else {
+    var endByte = j.bUp + sendLen - 1;
+    range = "bytes " + j.bUp + "-" + endByte + "/" + (isFinal ? (j.bUp + sendLen) : "*");
+  }
+  var resp;
+  try {
+    resp = uA.fetch(j.session, {
+      method: 'put',
+      headers: { "Authorization": "Bearer " + getOAuthToken(), "Content-Range": range, "Content-Type": mime },
+      payload: payload,
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log("Drive upload request failed: " + e);
+    return "retry";
+  }
+  var code = resp.getResponseCode();
+  if (code === 200 || code === 201) return "done";
+  if (code === 308) {
+    var rh = getHeaderCaseInsensitive(resp.getHeaders(), "Range");
+    var m = rh ? String(rh).match(/bytes=0-(\d+)/) : null;
+    var confirmed = m ? parseInt(m[1], 10) + 1 : 0;
+    var persisted = Math.max(0, confirmed - j.bUp);
+    j.bUp = Math.max(j.bUp, confirmed);
+    return persisted;
+  }
+  if (code >= 500) return "retry";
+  Logger.log("שגיאה בהעלאה לדרייב: קוד " + code);
+  sendFriendlyErrorEmail(j.url, code === 403 ? "DRIVE_STORAGE_FULL" : "GENERAL_DOWNLOAD_ERROR", "Drive Upload HTTP " + code);
+  return "error";
+}
+
+// ============================================================
+// HLS media playlist parsing, fMP4 init segments and AES-128
+// ============================================================
+// Purpose: Turn a media playlist into an ordered list of byte sources:
+//          { u: url, isInit: bool, br: [len, offset] | null,
+//            key: { uri, iv } | null, seq: media sequence number }.
+// Method:  Walks the tags in order. EXT-X-MAP (fMP4) inserts its init
+//          segment before the first segment that uses it (and again only
+//          if it changes). EXT-X-KEY METHOD=AES-128 attaches the key URI and
+//          IV to following segments; METHOD=NONE clears it; any other method
+//          (SAMPLE-AES, DRM) is rejected because it cannot be decrypted here.
+//          EXT-X-BYTERANGE is supported for segments and init sections.
+function parseHlsMediaPlaylist(manifest, manifestUrl) {
+  var lines = manifest.split(/\r?\n/);
+  var out = [];
+  var seq = 0, key = null, map = null, lastMapId = null, pendingBr = null, lastBrEnd = {};
+  for (var i = 0; i < lines.length; i++) {
+    var l = lines[i].trim();
+    if (!l) continue;
+    if (l.indexOf("#EXT-X-MEDIA-SEQUENCE:") === 0) { seq = parseInt(l.split(":")[1], 10) || 0; continue; }
+    if (l.indexOf("#EXT-X-KEY:") === 0) {
+      var method = (l.match(/METHOD=([A-Z0-9\-]+)/) || [])[1] || "NONE";
+      if (method === "NONE") { key = null; continue; }
+      if (method !== "AES-128") throw new Error("HLS encryption not supported (" + method + "/DRM)");
+      var kUri = (l.match(/URI="([^"]+)"/) || [])[1];
+      var kIv = (l.match(/IV=0[xX]([0-9a-fA-F]+)/) || [])[1] || null;
+      key = { uri: resolveUrl(manifestUrl, kUri), iv: kIv };
+      continue;
+    }
+    if (l.indexOf("#EXT-X-MAP:") === 0) {
+      var mUri = resolveUrl(manifestUrl, (l.match(/URI="([^"]+)"/) || [])[1]);
+      var mBr = (l.match(/BYTERANGE="(\d+)(?:@(\d+))?"/) || null);
+      map = { u: mUri, br: mBr ? [parseInt(mBr[1], 10), parseInt(mBr[2] || "0", 10)] : null, key: key };
+      continue;
+    }
+    if (l.indexOf("#EXT-X-BYTERANGE:") === 0) {
+      var p = l.split(":")[1].split("@");
+      pendingBr = [parseInt(p[0], 10), p[1] !== undefined ? parseInt(p[1], 10) : null];
+      continue;
+    }
+    if (l[0] === "#") continue;
+
+    var u = resolveUrl(manifestUrl, l);
+    if (map) {
+      var mapId = map.u + "|" + (map.br ? map.br.join("@") : "");
+      if (mapId !== lastMapId) {
+        out.push({ u: map.u, isInit: true, br: map.br, key: map.key, seq: seq });
+        lastMapId = mapId;
+      }
+    }
+    var br = null;
+    if (pendingBr) {
+      var off = pendingBr[1] !== null ? pendingBr[1] : (lastBrEnd[u] || 0);
+      br = [pendingBr[0], off];
+      lastBrEnd[u] = off + pendingBr[0];
+      pendingBr = null;
+    }
+    out.push({ u: u, isInit: false, br: br, key: key, seq: seq });
+    seq++;
+  }
+  return out;
+}
+
+// Download one segment (respecting byte ranges) and decrypt if needed.
+// Returns an array of unsigned byte values (0-255).
+function fetchHlsSegmentBytes(sg, keyCache) {
+  var uA = getS("Url" + "Fetch" + "App");
+  var opts = { muteHttpExceptions: true, headers: {} };
+  if (sg.br) opts.headers.Range = "bytes=" + sg.br[1] + "-" + (sg.br[1] + sg.br[0] - 1);
+  var r = uA.fetch(sg.u, opts);
+  var code = r.getResponseCode();
+  if (code !== 200 && code !== 206) throw new Error("HTTP " + code + " for segment");
+  var data = toUnsignedBytes(r.getContent());
+  if (sg.br && code === 200) data = data.slice(sg.br[1], sg.br[1] + sg.br[0]);
+  if (!sg.key) return data;
+
+  if (!keyCache[sg.key.uri]) {
+    var kr = uA.fetch(sg.key.uri, { muteHttpExceptions: true });
+    if (kr.getResponseCode() !== 200) throw new Error("HTTP " + kr.getResponseCode() + " for AES key");
+    keyCache[sg.key.uri] = toUnsignedBytes(kr.getContent());
+  }
+  var iv = sg.key.iv ? hexToBytes16(sg.key.iv) : seqToIv(sg.seq);
+  return aes128CbcDecrypt(data, keyCache[sg.key.uri], iv);
+}
+
+function toUnsignedBytes(arr) {
+  var out = new Array(arr.length);
+  for (var i = 0; i < arr.length; i++) out[i] = arr[i] & 0xff;
+  return out;
+}
+
+function hexToBytes16(hex) {
+  hex = ("00000000000000000000000000000000" + hex).slice(-32);
+  var out = [];
+  for (var i = 0; i < 32; i += 2) out.push(parseInt(hex.substr(i, 2), 16));
+  return out;
+}
+
+function seqToIv(seq) {
+  var iv = new Array(16).fill(0);
+  for (var i = 15; i >= 8 && seq > 0; i--) { iv[i] = seq % 256; seq = Math.floor(seq / 256); }
+  return iv;
+}
+
+// ============================================================
+// Minimal AES-128-CBC decryption (pure JS; Apps Script has no AES API)
+// ============================================================
+// Purpose: Decrypt HLS segments protected with METHOD=AES-128.
+// Method:  Standard AES key expansion and inverse cipher (FIPS-197) with
+//          precomputed tables, CBC chaining, then PKCS#7 padding removal.
+var AES_TABLES_ = null;
+function aesGmul_(a, b) {
+  var r = 0;
+  while (b) {
+    if (b & 1) r ^= a;
+    a = (a << 1) ^ ((a & 0x80) ? 0x11b : 0);
+    b >>= 1;
+  }
+  return r & 0xff;
+}
+function aesTables_() {
+  if (AES_TABLES_) return AES_TABLES_;
+  var sbox = new Array(256), inv = new Array(256), m9 = [], m11 = [], m13 = [], m14 = [];
+  for (var a = 0; a < 256; a++) {
+    var ainv = 0;
+    if (a) { for (var b = 1; b < 256; b++) { if (aesGmul_(a, b) === 1) { ainv = b; break; } } }
+    var x = ainv, s = x;
+    for (var k = 0; k < 4; k++) { x = ((x << 1) | (x >> 7)) & 0xff; s ^= x; }
+    s ^= 0x63;
+    sbox[a] = s; inv[s] = a;
+    m9[a] = aesGmul_(a, 9); m11[a] = aesGmul_(a, 11); m13[a] = aesGmul_(a, 13); m14[a] = aesGmul_(a, 14);
+  }
+  AES_TABLES_ = { sbox: sbox, inv: inv, m9: m9, m11: m11, m13: m13, m14: m14 };
+  return AES_TABLES_;
+}
+
+function aesExpandKey128_(key) {
+  var T = aesTables_(), w = key.slice(0, 16), rcon = 1;
+  for (var i = 16; i < 176; i += 4) {
+    var t = w.slice(i - 4, i);
+    if (i % 16 === 0) {
+      t = [T.sbox[t[1]] ^ rcon, T.sbox[t[2]], T.sbox[t[3]], T.sbox[t[0]]];
+      rcon = aesGmul_(rcon, 2);
+    }
+    for (var k = 0; k < 4; k++) w[i + k] = w[i - 16 + k] ^ t[k];
+  }
+  return w; // 11 round keys x 16 bytes
+}
+
+function aesDecryptBlock_(st, w, T) {
+  var r, i, c, a0, a1, a2, a3, t;
+  for (i = 0; i < 16; i++) st[i] ^= w[160 + i];
+  for (r = 9; r >= 0; r--) {
+    // InvShiftRows
+    t = st[13]; st[13] = st[9]; st[9] = st[5]; st[5] = st[1]; st[1] = t;
+    t = st[2]; st[2] = st[10]; st[10] = t; t = st[6]; st[6] = st[14]; st[14] = t;
+    t = st[3]; st[3] = st[7]; st[7] = st[11]; st[11] = st[15]; st[15] = t;
+    // InvSubBytes + AddRoundKey
+    for (i = 0; i < 16; i++) st[i] = T.inv[st[i]] ^ w[r * 16 + i];
+    if (r === 0) break;
+    // InvMixColumns
+    for (c = 0; c < 16; c += 4) {
+      a0 = st[c]; a1 = st[c + 1]; a2 = st[c + 2]; a3 = st[c + 3];
+      st[c]     = T.m14[a0] ^ T.m11[a1] ^ T.m13[a2] ^ T.m9[a3];
+      st[c + 1] = T.m9[a0] ^ T.m14[a1] ^ T.m11[a2] ^ T.m13[a3];
+      st[c + 2] = T.m13[a0] ^ T.m9[a1] ^ T.m14[a2] ^ T.m11[a3];
+      st[c + 3] = T.m11[a0] ^ T.m13[a1] ^ T.m9[a2] ^ T.m14[a3];
+    }
+  }
+}
+
+function aes128CbcDecrypt(data, key, iv) {
+  if (data.length % 16 !== 0) throw new Error("AES-128 segment length is not a multiple of 16");
+  var T = aesTables_(), w = aesExpandKey128_(key);
+  var out = new Array(data.length), prev = iv.slice(0, 16), st = new Array(16);
+  for (var o = 0; o < data.length; o += 16) {
+    for (var i = 0; i < 16; i++) st[i] = data[o + i];
+    aesDecryptBlock_(st, w, T);
+    for (i = 0; i < 16; i++) { out[o + i] = st[i] ^ prev[i]; prev[i] = data[o + i]; }
+  }
+  var pad = out[out.length - 1];
+  if (pad > 0 && pad <= 16) out.length -= pad; // PKCS#7
+  return out;
 }
 
 // ============================================================
@@ -1062,8 +1320,8 @@ function startHlsAudioPhase(j, s, folder) {
   j.url = j.audioUrl;
   j.audioUrl = null;
   j.isAudioPhase = true;
-  j.fn = j.fn.replace(/\.ts$/, "") + "_audio.ts";
-  j.segs = null; j.session = null; j.bDone = 0; j.bUp = 0; j.errs = 0;
+  j.fn = j.fn.replace(/\.(ts|mp4)$/, "") + "_audio.ts";
+  j.segs = null; j.session = null; j.mime = null; j.bDone = 0; j.bUp = 0; j.skip = 0; j.errs = 0;
   return handleM3U8(j, s, folder);
 }
 
@@ -1327,7 +1585,7 @@ function sendFriendlyErrorEmail(url, errorCategory, rawError) {
   html += '</div>';
   
   try {
-    mA.sendEmail({
+    sendMailWithVersion_(mA, {
       to: owner,
       subject: title,
       htmlBody: html
@@ -1335,4 +1593,38 @@ function sendFriendlyErrorEmail(url, errorCategory, rawError) {
   } catch(e) {
     Logger.log("שגיאה בשליחת אימייל שגיאה: " + e);
   }
+}
+
+// ============================================================
+// Version visibility helpers
+// ============================================================
+// Purpose: Let users see which script version they run, so bug reports
+//          can tell whether an issue is already fixed in a newer version.
+// Method:  syncFormVersionLine_() keeps a single "גרסה: X" line at the
+//          end of the form description; it rewrites the description only when
+//          the line is missing or outdated, so it is cheap to call every run.
+//          sendMailWithVersion_() appends the same version line as a small
+//          footer to the plain-text and HTML bodies of every outgoing email.
+function syncFormVersionLine_(form) {
+  try {
+    var wanted = VERSION_LINE_PREFIX + SCRIPT_VERSION;
+    var desc = form.getDescription() || "";
+    if (desc.indexOf(wanted) !== -1) return;
+    var lines = desc.split("\n").filter(function(l) { return l.indexOf(VERSION_LINE_PREFIX) !== 0; });
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    lines.push("", wanted);
+    form.setDescription(lines.join("\n").replace(/^\n+/, ""));
+    Logger.log("Form description version line updated to " + SCRIPT_VERSION);
+  } catch (e) {
+    Logger.log("Could not update form version line: " + e);
+  }
+}
+
+function sendMailWithVersion_(mailApp, opts) {
+  var line = VERSION_LINE_PREFIX + SCRIPT_VERSION;
+  if (opts.body) opts.body += "\n\n—\n" + line;
+  if (opts.htmlBody) {
+    opts.htmlBody += '<p dir="rtl" style="color:#999;font-size:11px;text-align:right;margin-top:24px;">' + line + '</p>';
+  }
+  return mailApp.sendEmail(opts);
 }
